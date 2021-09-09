@@ -20,8 +20,22 @@ impl<'a> Disassembler<'a> {
     pub fn disassemble_instruction(&self, idx: usize, instruction: &'a Instruction) {
         print!("{:04} ", idx);
 
-        match instruction {
-            Instruction::Return => println!("RETURN"),
+        let line = self.chunk.get_line(idx);
+
+        if idx > 0 && line == self.chunk.get_line(idx - 1) {
+            print!("   | ");
+        } else {
+            print!("{:4} ", line);
         }
+
+        match instruction {
+            Instruction::RETURN => println!("RETURN"),
+            Instruction::CONSTANT(addr) => self.constant("CONSTANT", *addr),
+        }
+    }
+
+    fn constant(&self, name: &str, addr: u16) {
+        let value = self.chunk.get_constant(addr);
+        println!("{:16} {:4} '{}'", name, addr, value);
     }
 }
