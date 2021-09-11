@@ -1,5 +1,6 @@
 use crate::{
     chunk::{Chunk, Instruction},
+    compiler::compile,
     disassembler::Disassembler,
     error::{TACError, TACResult},
     value::Value,
@@ -35,11 +36,10 @@ impl VirtualMachine {
         }
     }
 
-    pub fn interpret(&mut self, chunk: Chunk) -> TACResult<()> {
-        self.current_chunk.insert(chunk);
-        self.ip = 0;
+    pub fn interpret(&mut self, source: &str) -> TACResult<()> {
+        compile(source);
 
-        self.run()
+        Ok(())
     }
 
     fn current_chunk(&self) -> TACResult<&Chunk> {

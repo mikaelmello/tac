@@ -2,6 +2,8 @@ use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::io;
 
+use crate::vm::VirtualMachine;
+
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 pub fn repl() -> io::Result<()> {
@@ -9,6 +11,8 @@ pub fn repl() -> io::Result<()> {
     let mut rl = Editor::<()>::new();
 
     println!("TAC {}", VERSION);
+
+    let mut vm = VirtualMachine::new();
 
     loop {
         let readline = rl.readline(">>> ");
@@ -20,7 +24,10 @@ pub fn repl() -> io::Result<()> {
 
                 rl.add_history_entry(line.as_str());
 
-                println!("{}", line);
+                match vm.interpret(&line) {
+                    Ok(()) => {}
+                    Err(err) => println!("Error: {:?}", err),
+                }
             }
             Err(ReadlineError::Interrupted) => {
                 println!("CTRL-C");
