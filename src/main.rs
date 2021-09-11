@@ -1,38 +1,20 @@
-use chunk::{Chunk, Instruction};
-use disassembler::Disassembler;
-use error::TACResult;
-use value::Value;
-use vm::VirtualMachine;
+use clap::Clap;
+use opts::Opts;
 
 mod chunk;
 mod disassembler;
 mod error;
+mod file;
+mod opts;
+mod repl;
 mod value;
 mod vm;
 
-fn main() -> TACResult<()> {
-    let mut chunk = Chunk::new();
-    let constant = chunk.add_constant(Value::F64(1.2));
+fn main() {
+    let opts: Opts = Opts::parse();
 
-    chunk.write(Instruction::CONSTANT(constant), 0);
-
-    let constant = chunk.add_constant(Value::F64(3.4));
-    chunk.write(Instruction::CONSTANT(constant), 0);
-
-    chunk.write(Instruction::ADD, 0);
-
-    let constant = chunk.add_constant(Value::F64(5.6));
-    chunk.write(Instruction::CONSTANT(constant), 0);
-
-    chunk.write(Instruction::DIVIDE, 0);
-    chunk.write(Instruction::NEGATE, 0);
-    chunk.write(Instruction::RETURN, 0);
-
-    let mut vm = VirtualMachine::new();
-    vm.interpret(chunk)?;
-
-    // let disassembler = Disassembler::new(&chunk);
-    // disassembler.disassemble("Test Chunk");
-
-    Ok(())
+    match opts.script {
+        Some(path) => file::run_file(&path),
+        None => repl::repl().unwrap(),
+    }
 }

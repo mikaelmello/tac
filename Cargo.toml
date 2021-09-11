@@ -10,3 +10,5 @@ default = ["debug_trace_execution"]
 debug_trace_execution = []
 
 [dependencies]
+clap = "3.0.0-beta.4"
+rustyline = "9.0.0"
