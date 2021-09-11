@@ -30,7 +30,7 @@ impl<'source> Scanner<'source> {
         }
     }
 
-    pub fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> Token<'source> {
         self.skip_non_tokens();
 
         self.start = self.current;
@@ -99,15 +99,8 @@ impl<'source> Scanner<'source> {
             while self.match_pred_advance(|c| c.is_ascii_digit()) {}
         }
 
-        let suffix_start = self.current;
+        // suffix
         while self.match_pred_advance(|c| c.is_ascii_alphanumeric()) {}
-        let suffix_end = self.current;
-        let suffix = self.lexeme_at(suffix_start, suffix_end);
-
-        match suffix {
-            "i64" | "u64" | "f64" | "" => {}
-            _ => return self.error_token("Invalid number suffix"),
-        };
 
         self.make_token(TokenKind::Number)
     }

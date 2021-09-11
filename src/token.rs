@@ -59,10 +59,21 @@ pub enum TokenKind {
     Eof,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Token<'source> {
     pub kind: TokenKind,
     pub lexeme: &'source str,
     pub line: usize,
+}
+
+impl<'sourcecode> Token<'sourcecode> {
+    pub fn synthetic(text: &'sourcecode str) -> Token<'sourcecode> {
+        Token {
+            kind: TokenKind::Error,
+            lexeme: text,
+            line: 0,
+        }
+    }
 }
 
 impl Display for TokenKind {

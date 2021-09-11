@@ -1,4 +1,4 @@
-use crate::value::Value;
+use crate::{error::TACResult, value::Value};
 use std::convert::TryFrom;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -59,15 +59,15 @@ impl Chunk {
         index
     }
 
-    pub fn add_constant(&mut self, value: Value) -> u16 {
+    pub fn add_constant(&mut self, value: Value) -> Result<u16, &'static str> {
         let index = self.constants.len();
 
         match u16::try_from(index) {
             Ok(index) => {
                 self.constants.push(value);
-                index
+                Ok(index)
             }
-            Err(_) => panic!("Could not add constant, reached limit of u16 max size"),
+            Err(_) => Err("Could not add constant, reached limit of u16 max size"),
         }
     }
 
