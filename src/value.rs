@@ -3,8 +3,6 @@ use std::{
     ops,
 };
 
-use crate::error::{TACError, TACResult};
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Value {
     F64(f64),
@@ -15,13 +13,13 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn arithmetic_negate(&mut self) -> TACResult<()> {
+    pub fn arithmetic_negate(&mut self) -> Result<(), String> {
         match self {
             Value::F64(val) => Ok(*val = -(*val)),
-            Value::U64(_) => Err(TACError::RuntimeError),
+            Value::U64(_) => Err("It is not possible to negate a number of type u64".into()),
             Value::I64(val) => Ok(*val = -(*val)),
-            Value::Bool(_) => Err(TACError::RuntimeError),
-            Value::Char(_) => Err(TACError::RuntimeError),
+            Value::Bool(_) => Err("It is not possible to arithmetically negate a boolean".into()),
+            Value::Char(_) => Err("It is not possible to negate a character".into()),
         }
     }
 
@@ -49,70 +47,90 @@ impl Display for Value {
 }
 
 impl ops::Add<Value> for Value {
-    type Output = TACResult<Value>;
+    type Output = Result<Value, String>;
 
-    fn add(self, _rhs: Value) -> TACResult<Value> {
+    fn add(self, _rhs: Value) -> Result<Value, String> {
         match (self, _rhs) {
             // TODO: handle overflows that would normally panic
             (Value::F64(a), Value::F64(b)) => Ok(Value::F64(a + b)),
             (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a + b)),
             (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a + b)),
-            (a, b) => Err(TACError::RuntimeError),
+            (a, b) => Err(format!(
+                "Operator '+' not supported between values of type '{}' and '{}'",
+                a.type_info(),
+                b.type_info()
+            )),
         }
     }
 }
 
 impl ops::Sub<Value> for Value {
-    type Output = TACResult<Value>;
+    type Output = Result<Value, String>;
 
-    fn sub(self, _rhs: Value) -> TACResult<Value> {
+    fn sub(self, _rhs: Value) -> Result<Value, String> {
         match (self, _rhs) {
             // TODO: handle overflows that would normally panic
             (Value::F64(a), Value::F64(b)) => Ok(Value::F64(a - b)),
             (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a - b)),
             (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a - b)),
-            (a, b) => Err(TACError::RuntimeError),
+            (a, b) => Err(format!(
+                "Operator '-' not supported between values of type '{}' and '{}'",
+                a.type_info(),
+                b.type_info()
+            )),
         }
     }
 }
 
 impl ops::Mul<Value> for Value {
-    type Output = TACResult<Value>;
+    type Output = Result<Value, String>;
 
-    fn mul(self, _rhs: Value) -> TACResult<Value> {
+    fn mul(self, _rhs: Value) -> Result<Value, String> {
         match (self, _rhs) {
             // TODO: handle overflows that would normally panic
             (Value::F64(a), Value::F64(b)) => Ok(Value::F64(a * b)),
             (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a * b)),
             (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a * b)),
-            (a, b) => Err(TACError::RuntimeError),
+            (a, b) => Err(format!(
+                "Operator '*' not supported between values of type '{}' and '{}'",
+                a.type_info(),
+                b.type_info()
+            )),
         }
     }
 }
 
 impl ops::Div<Value> for Value {
-    type Output = TACResult<Value>;
+    type Output = Result<Value, String>;
 
-    fn div(self, _rhs: Value) -> TACResult<Value> {
+    fn div(self, _rhs: Value) -> Result<Value, String> {
         match (self, _rhs) {
             // TODO: handle overflows that would normally panic
             (Value::F64(a), Value::F64(b)) => Ok(Value::F64(a / b)),
             (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a / b)),
             (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a / b)),
-            (a, b) => Err(TACError::RuntimeError),
+            (a, b) => Err(format!(
+                "Operator '/' not supported between values of type '{}' and '{}'",
+                a.type_info(),
+                b.type_info()
+            )),
         }
     }
 }
 
 impl ops::Rem<Value> for Value {
-    type Output = TACResult<Value>;
+    type Output = Result<Value, String>;
 
-    fn rem(self, _rhs: Value) -> TACResult<Value> {
+    fn rem(self, _rhs: Value) -> Result<Value, String> {
         match (self, _rhs) {
             (Value::F64(a), Value::F64(b)) => Ok(Value::F64(a % b)),
             (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a % b)),
             (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a % b)),
-            (a, b) => Err(TACError::RuntimeError),
+            (a, b) => Err(format!(
+                "Operator '%' not supported between values of type '{}' and '{}'",
+                a.type_info(),
+                b.type_info()
+            )),
         }
     }
 }

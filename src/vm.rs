@@ -16,14 +16,17 @@ macro_rules! binary_op {
     ($self:expr,$oper:tt) => {{
         let b = match $self.stack.pop() {
             Some(val) => val,
-            None => Err($self.runtime_error())?,
+            None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
         };
         let a = match $self.stack.pop() {
             Some(val) => val,
-            None => Err($self.runtime_error())?,
+            None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
         };
         let res = a $oper b;
-        $self.stack.push(res?);
+        match res {
+            Ok(val) => $self.stack.push(val),
+            Err(msg) => Err($self.report_rte(msg))?,
+        };
     }};
 }
 
@@ -38,7 +41,7 @@ impl VirtualMachine {
 
     pub fn interpret(&mut self, source: &str) -> TACResult<()> {
         let mut chunk = Chunk::new();
-        self.stack = vec![];
+        self.stack.clear();
         self.ip = 0;
 
         Compiler::compile(source, &mut chunk)?;
@@ -51,7 +54,7 @@ impl VirtualMachine {
     fn current_chunk(&self) -> TACResult<&Chunk> {
         match self.current_chunk.as_ref() {
             Some(c) => Ok(c),
-            None => return Err(TACError::RuntimeError),
+            None => return Err(self.report_rte("No chunk to run code from".into())),
         }
     }
 
@@ -59,7 +62,12 @@ impl VirtualMachine {
         loop {
             let instruction = match self.current_chunk()?.code.get(self.ip) {
                 Some(i) => *i,
-                None => return Err(TACError::RuntimeError),
+                None => {
+                    return Err(self.report_rte(
+                        "Instruction pointer reached end of code without a finishing statement"
+                            .into(),
+                    ))
+                }
             };
 
             #[cfg(feature = "debug_trace_execution")]
@@ -71,32 +79,52 @@ impl VirtualMachine {
             self.ip += 1;
 
             match instruction {
-                Instruction::RETURN => {
-                    let value = self.stack.pop().ok_or(TACError::RuntimeError)?;
-                    println!("{}", value);
-                    return Ok(());
-                }
+                Instruction::RETURN => return self.r#return(),
                 Instruction::ADD => binary_op!(self, +),
                 Instruction::SUBTRACT => binary_op!(self, -),
                 Instruction::MULTIPLY => binary_op!(self, *),
                 Instruction::DIVIDE => binary_op!(self, /),
-                Instruction::NEGATE => match self.stack.last_mut() {
-                    Some(val) => val.arithmetic_negate()?,
-                    None => Err(self.runtime_error())?,
-                },
-                Instruction::CONSTANT(addr) => {
-                    let value = self.read_constant(addr)?;
-                    self.stack.push(value);
-                }
+                Instruction::NEGATE => self.negate()?,
+                Instruction::CONSTANT(addr) => self.constant(addr)?,
             }
         }
+    }
+
+    fn r#return(&mut self) -> TACResult<()> {
+        let value = self
+            .stack
+            .pop()
+            .ok_or_else(|| self.report_rte("No value in the stack to return".into()))?;
+
+        println!("{}", value);
+        return Ok(());
+    }
+
+    fn negate(&mut self) -> TACResult<()> {
+        match self.stack.last_mut().map(Value::arithmetic_negate) {
+            Some(Ok(_)) => Ok(()),
+            Some(Err(msg)) => Err(self.report_rte(msg)),
+            None => Err(self.report_rte(format!(
+                "Can not apply unary operator '-' because there is not a value in the stack"
+            ))),
+        }
+    }
+
+    fn constant(&mut self, addr: u16) -> TACResult<()> {
+        let value = self.read_constant(addr)?;
+        self.stack.push(value);
+        Ok(())
     }
 
     fn read_constant(&mut self, addr: u16) -> TACResult<Value> {
         Ok(self.current_chunk()?.get_constant(addr))
     }
 
-    fn runtime_error(&mut self) -> TACError {
+    fn report_rte(&self, message: String) -> TACError {
+        let line = self.current_chunk().unwrap().get_line(self.ip);
+        eprintln!("{}", message);
+        eprintln!("[line {}] in script", line);
+
         TACError::RuntimeError
     }
 }

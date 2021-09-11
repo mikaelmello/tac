@@ -1,6 +1,6 @@
 use crate::token::{Token, TokenKind};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TACError {
     CompileError,
     RuntimeError,
