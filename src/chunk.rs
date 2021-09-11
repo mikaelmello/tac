@@ -1,11 +1,18 @@
 use crate::value::Value;
 use std::convert::TryFrom;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Instruction {
     RETURN,
+    ADD,
+    SUBTRACT,
+    MULTIPLY,
+    DIVIDE,
+    NEGATE,
     CONSTANT(u16),
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct LineStart {
     offset: usize,
     line: usize,
@@ -18,7 +25,7 @@ impl LineStart {
 }
 
 pub struct Chunk {
-    code: Vec<Instruction>,
+    pub code: Vec<Instruction>,
     constants: Vec<Value>,
     lines: Vec<LineStart>,
 }
@@ -70,10 +77,6 @@ impl Chunk {
             .get(idx)
             .copied()
             .expect("Could not get constant")
-    }
-
-    pub fn code(&self) -> &[Instruction] {
-        &self.code
     }
 
     pub fn get_line(&self, instruction_idx: usize) -> usize {

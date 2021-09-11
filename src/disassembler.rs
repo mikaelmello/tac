@@ -12,12 +12,12 @@ impl<'a> Disassembler<'a> {
     pub fn disassemble(self, name: &str) {
         println!("=== {} ===", name);
 
-        for (idx, instruction) in self.chunk.code().into_iter().enumerate() {
-            self.disassemble_instruction(idx, instruction);
+        for (idx, instruction) in self.chunk.code.iter().enumerate() {
+            self.instruction(idx, instruction);
         }
     }
 
-    pub fn disassemble_instruction(&self, idx: usize, instruction: &'a Instruction) {
+    pub fn instruction(&self, idx: usize, instruction: &'a Instruction) {
         print!("{:04} ", idx);
 
         let line = self.chunk.get_line(idx);
@@ -30,6 +30,11 @@ impl<'a> Disassembler<'a> {
 
         match instruction {
             Instruction::RETURN => println!("RETURN"),
+            Instruction::ADD => println!("ADD"),
+            Instruction::SUBTRACT => println!("SUBTRACT"),
+            Instruction::MULTIPLY => println!("MULTIPLY"),
+            Instruction::DIVIDE => println!("DIVIDE"),
+            Instruction::NEGATE => println!("NEGATE"),
             Instruction::CONSTANT(addr) => self.constant("CONSTANT", *addr),
         }
     }
