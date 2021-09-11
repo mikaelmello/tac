@@ -35,7 +35,10 @@ impl<'a> Disassembler<'a> {
             Instruction::MULTIPLY => println!("MULTIPLY"),
             Instruction::DIVIDE => println!("DIVIDE"),
             Instruction::NEGATE => println!("NEGATE"),
+            Instruction::NOT => println!("NOT"),
             Instruction::CONSTANT(addr) => self.constant("CONSTANT", *addr),
+            Instruction::TRUE => println!("TRUE"),
+            Instruction::FALSE => println!("FALSE"),
         }
     }
 

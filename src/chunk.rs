@@ -1,4 +1,4 @@
-use crate::{error::TACResult, value::Value};
+use crate::value::Value;
 use std::convert::TryFrom;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -9,6 +9,9 @@ pub enum Instruction {
     MULTIPLY,
     DIVIDE,
     NEGATE,
+    TRUE,
+    FALSE,
+    NOT,
     CONSTANT(u16),
 }
 

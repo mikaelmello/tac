@@ -139,6 +139,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
 
         match kind {
             TokenKind::Minus => self.emit_instruction(Instruction::NEGATE),
+            TokenKind::Bang => self.emit_instruction(Instruction::NOT),
             _ => panic!("Unreachable - match arm not covered in unary()"),
         }
     }
@@ -153,6 +154,14 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::Slash => self.emit_instruction(Instruction::DIVIDE),
             TokenKind::Star => self.emit_instruction(Instruction::MULTIPLY),
             _ => panic!("Unreachable - match arm not covered in binary()"),
+        }
+    }
+
+    fn literal(&mut self) {
+        match self.previous.kind {
+            TokenKind::False => self.emit_instruction(Instruction::FALSE),
+            TokenKind::True => self.emit_instruction(Instruction::TRUE),
+            _ => panic!("Unreachable - match arm not covered in literal()"),
         }
     }
 
@@ -244,7 +253,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::Semicolon => (None, None, Precedence::None),
             TokenKind::Slash => (None, Some(Self::binary), Precedence::Factor),
             TokenKind::Star => (None, Some(Self::binary), Precedence::Factor),
-            TokenKind::Bang => (None, None, Precedence::None),
+            TokenKind::Bang => (Some(Self::unary), None, Precedence::None),
             TokenKind::BangEqual => (None, None, Precedence::None),
             TokenKind::Equal => (None, None, Precedence::None),
             TokenKind::EqualEqual => (None, None, Precedence::None),
@@ -255,7 +264,6 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::Identifier => (None, None, Precedence::None),
             TokenKind::String => (None, None, Precedence::None),
             TokenKind::Number => (Some(Self::number), None, Precedence::None),
-            TokenKind::False => (None, None, Precedence::None),
             TokenKind::If => (None, None, Precedence::None),
             TokenKind::Print => (None, None, Precedence::None),
             TokenKind::Return => (None, None, Precedence::None),
@@ -269,7 +277,8 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::Goto => (None, None, Precedence::None),
             TokenKind::Param => (None, None, Precedence::None),
             TokenKind::Call => (None, None, Precedence::None),
-            TokenKind::True => (None, None, Precedence::None),
+            TokenKind::True => (Some(Self::literal), None, Precedence::None),
+            TokenKind::False => (Some(Self::literal), None, Precedence::None),
             TokenKind::PrintLn => (None, None, Precedence::None),
             TokenKind::Scan => (None, None, Precedence::None),
             TokenKind::U64KW => (None, None, Precedence::None),

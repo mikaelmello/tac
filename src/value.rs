@@ -23,6 +23,16 @@ impl Value {
         }
     }
 
+    pub fn logic_negate(&mut self) -> Result<(), String> {
+        match self {
+            Value::Bool(val) => Ok(*val = !(*val)),
+            val => Err(format!(
+                "Operator '!' not supported for value of type {}",
+                val.type_info()
+            )),
+        }
+    }
+
     pub fn type_info(&self) -> &'static str {
         match self {
             Value::F64(_) => "f64",

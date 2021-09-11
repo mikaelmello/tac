@@ -85,7 +85,10 @@ impl VirtualMachine {
                 Instruction::MULTIPLY => binary_op!(self, *),
                 Instruction::DIVIDE => binary_op!(self, /),
                 Instruction::NEGATE => self.negate()?,
+                Instruction::NOT => self.not()?,
                 Instruction::CONSTANT(addr) => self.constant(addr)?,
+                Instruction::TRUE => self.stack.push(Value::Bool(true)),
+                Instruction::FALSE => self.stack.push(Value::Bool(false)),
             }
         }
     }
@@ -102,6 +105,16 @@ impl VirtualMachine {
 
     fn negate(&mut self) -> TACResult<()> {
         match self.stack.last_mut().map(Value::arithmetic_negate) {
+            Some(Ok(_)) => Ok(()),
+            Some(Err(msg)) => Err(self.report_rte(msg)),
+            None => Err(self.report_rte(format!(
+                "Can not apply unary operator '-' because there is not a value in the stack"
+            ))),
+        }
+    }
+
+    fn not(&mut self) -> TACResult<()> {
+        match self.stack.last_mut().map(Value::logic_negate) {
             Some(Ok(_)) => Ok(()),
             Some(Err(msg)) => Err(self.report_rte(msg)),
             None => Err(self.report_rte(format!(
