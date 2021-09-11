@@ -39,6 +39,9 @@ impl<'a> Disassembler<'a> {
             Instruction::CONSTANT(addr) => self.constant("CONSTANT", *addr),
             Instruction::TRUE => println!("TRUE"),
             Instruction::FALSE => println!("FALSE"),
+            Instruction::EQUAL => println!("EQUAL"),
+            Instruction::GREATER => println!("GREATER"),
+            Instruction::LESS => println!("LESS"),
         }
     }
 

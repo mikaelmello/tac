@@ -12,6 +12,9 @@ pub enum Instruction {
     TRUE,
     FALSE,
     NOT,
+    EQUAL,
+    GREATER,
+    LESS,
     CONSTANT(u16),
 }
 

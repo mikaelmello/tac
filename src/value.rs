@@ -3,7 +3,7 @@ use std::{
     ops,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub enum Value {
     F64(f64),
     U64(u64),
@@ -29,6 +29,49 @@ impl Value {
             val => Err(format!(
                 "Operator '!' not supported for value of type {}",
                 val.type_info()
+            )),
+        }
+    }
+
+    pub fn lt(a: Value, b: Value) -> Result<Value, String> {
+        match (a, b) {
+            (Value::F64(a), Value::F64(b)) => Ok(Value::Bool(a < b)),
+            (Value::U64(a), Value::U64(b)) => Ok(Value::Bool(a < b)),
+            (Value::I64(a), Value::I64(b)) => Ok(Value::Bool(a < b)),
+            (Value::Char(a), Value::Char(b)) => Ok(Value::Bool(a < b)),
+            (a, b) => Err(format!(
+                "Operator '<' not supported between values of type '{}' and '{}'",
+                a.type_info(),
+                b.type_info()
+            )),
+        }
+    }
+
+    pub fn gt(a: Value, b: Value) -> Result<Value, String> {
+        match (a, b) {
+            (Value::F64(a), Value::F64(b)) => Ok(Value::Bool(a > b)),
+            (Value::U64(a), Value::U64(b)) => Ok(Value::Bool(a > b)),
+            (Value::I64(a), Value::I64(b)) => Ok(Value::Bool(a > b)),
+            (Value::Char(a), Value::Char(b)) => Ok(Value::Bool(a > b)),
+            (a, b) => Err(format!(
+                "Operator '>' not supported between values of type '{}' and '{}'",
+                a.type_info(),
+                b.type_info()
+            )),
+        }
+    }
+
+    pub fn eq(a: Value, b: Value) -> Result<Value, String> {
+        match (a, b) {
+            (Value::F64(a), Value::F64(b)) => Ok(Value::Bool(a == b)),
+            (Value::U64(a), Value::U64(b)) => Ok(Value::Bool(a == b)),
+            (Value::I64(a), Value::I64(b)) => Ok(Value::Bool(a == b)),
+            (Value::Bool(a), Value::Bool(b)) => Ok(Value::Bool(a == b)),
+            (Value::Char(a), Value::Char(b)) => Ok(Value::Bool(a == b)),
+            (a, b) => Err(format!(
+                "Operator '==' not supported between values of type '{}' and '{}'",
+                a.type_info(),
+                b.type_info()
             )),
         }
     }

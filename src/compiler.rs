@@ -153,6 +153,16 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::Minus => self.emit_instruction(Instruction::SUBTRACT),
             TokenKind::Slash => self.emit_instruction(Instruction::DIVIDE),
             TokenKind::Star => self.emit_instruction(Instruction::MULTIPLY),
+            TokenKind::EqualEqual => self.emit_instruction(Instruction::EQUAL),
+            TokenKind::BangEqual => self.emit_instructions(&[Instruction::EQUAL, Instruction::NOT]),
+            TokenKind::Greater => self.emit_instruction(Instruction::GREATER),
+            TokenKind::GreaterEqual => {
+                self.emit_instructions(&[Instruction::LESS, Instruction::NOT])
+            }
+            TokenKind::Less => self.emit_instruction(Instruction::LESS),
+            TokenKind::LessEqual => {
+                self.emit_instructions(&[Instruction::GREATER, Instruction::NOT])
+            }
             _ => panic!("Unreachable - match arm not covered in binary()"),
         }
     }
@@ -254,13 +264,13 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::Slash => (None, Some(Self::binary), Precedence::Factor),
             TokenKind::Star => (None, Some(Self::binary), Precedence::Factor),
             TokenKind::Bang => (Some(Self::unary), None, Precedence::None),
-            TokenKind::BangEqual => (None, None, Precedence::None),
+            TokenKind::BangEqual => (None, Some(Self::binary), Precedence::Equality),
             TokenKind::Equal => (None, None, Precedence::None),
-            TokenKind::EqualEqual => (None, None, Precedence::None),
-            TokenKind::Greater => (None, None, Precedence::None),
-            TokenKind::GreaterEqual => (None, None, Precedence::None),
-            TokenKind::Less => (None, None, Precedence::None),
-            TokenKind::LessEqual => (None, None, Precedence::None),
+            TokenKind::EqualEqual => (None, Some(Self::binary), Precedence::Equality),
+            TokenKind::Greater => (None, Some(Self::binary), Precedence::Comparison),
+            TokenKind::GreaterEqual => (None, Some(Self::binary), Precedence::Comparison),
+            TokenKind::Less => (None, Some(Self::binary), Precedence::Comparison),
+            TokenKind::LessEqual => (None, Some(Self::binary), Precedence::Comparison),
             TokenKind::Identifier => (None, None, Precedence::None),
             TokenKind::String => (None, None, Precedence::None),
             TokenKind::Number => (Some(Self::number), None, Precedence::None),
@@ -311,6 +321,12 @@ impl<'source, 'c> Compiler<'source, 'c> {
 
     fn emit_instruction(&mut self, instruction: Instruction) {
         self.chunk.write(instruction, self.previous.line);
+    }
+
+    fn emit_instructions(&mut self, instructions: &[Instruction]) {
+        for i in instructions {
+            self.emit_instruction(*i);
+        }
     }
 
     fn consume(&mut self, kind: TokenKind, message: &str) {

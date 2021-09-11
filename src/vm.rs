@@ -30,6 +30,24 @@ macro_rules! binary_op {
     }};
 }
 
+macro_rules! binary_op_f {
+    ($self:expr,$oper:ident) => {{
+        let b = match $self.stack.pop() {
+            Some(val) => val,
+            None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
+        };
+        let a = match $self.stack.pop() {
+            Some(val) => val,
+            None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
+        };
+        let res = Value::$oper(a, b);
+        match res {
+            Ok(val) => $self.stack.push(val),
+            Err(msg) => Err($self.report_rte(msg))?,
+        };
+    }};
+}
+
 impl VirtualMachine {
     pub fn new() -> Self {
         Self {
@@ -80,15 +98,18 @@ impl VirtualMachine {
 
             match instruction {
                 Instruction::RETURN => return self.r#return(),
-                Instruction::ADD => binary_op!(self, +),
-                Instruction::SUBTRACT => binary_op!(self, -),
-                Instruction::MULTIPLY => binary_op!(self, *),
-                Instruction::DIVIDE => binary_op!(self, /),
                 Instruction::NEGATE => self.negate()?,
                 Instruction::NOT => self.not()?,
                 Instruction::CONSTANT(addr) => self.constant(addr)?,
                 Instruction::TRUE => self.stack.push(Value::Bool(true)),
                 Instruction::FALSE => self.stack.push(Value::Bool(false)),
+                Instruction::ADD => binary_op!(self, +),
+                Instruction::SUBTRACT => binary_op!(self, -),
+                Instruction::MULTIPLY => binary_op!(self, *),
+                Instruction::DIVIDE => binary_op!(self, /),
+                Instruction::EQUAL => binary_op_f!(self, eq),
+                Instruction::GREATER => binary_op_f!(self, gt),
+                Instruction::LESS => binary_op_f!(self, lt),
             }
         }
     }
