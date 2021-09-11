@@ -10,14 +10,18 @@ pub enum Value {
     F64(f64),
     U64(u64),
     I64(i64),
+    Bool(bool),
+    Char(char),
 }
 
 impl Value {
-    pub fn negate(&mut self) -> TACResult<()> {
+    pub fn arithmetic_negate(&mut self) -> TACResult<()> {
         match self {
             Value::F64(val) => Ok(*val = -(*val)),
-            Value::U64(val) => Err(TACError::RuntimeError),
+            Value::U64(_) => Err(TACError::RuntimeError),
             Value::I64(val) => Ok(*val = -(*val)),
+            Value::Bool(_) => Err(TACError::RuntimeError),
+            Value::Char(_) => Err(TACError::RuntimeError),
         }
     }
 
@@ -26,6 +30,8 @@ impl Value {
             Value::F64(_) => "f64",
             Value::U64(_) => "u64",
             Value::I64(_) => "i64",
+            Value::Bool(_) => "bool",
+            Value::Char(_) => "char",
         }
     }
 }
@@ -36,6 +42,8 @@ impl Display for Value {
             Value::F64(val) => write!(f, "{}", val),
             Value::U64(val) => write!(f, "{}", val),
             Value::I64(val) => write!(f, "{}", val),
+            Value::Bool(val) => write!(f, "{}", val),
+            Value::Char(val) => write!(f, "{}", val),
         }
     }
 }

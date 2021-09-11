@@ -81,7 +81,7 @@ impl VirtualMachine {
                 Instruction::MULTIPLY => binary_op!(self, *),
                 Instruction::DIVIDE => binary_op!(self, /),
                 Instruction::NEGATE => match self.stack.last_mut() {
-                    Some(val) => val.negate()?,
+                    Some(val) => val.arithmetic_negate()?,
                     None => Err(self.runtime_error())?,
                 },
                 Instruction::CONSTANT(addr) => {
