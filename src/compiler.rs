@@ -92,14 +92,56 @@ impl<'source, 'c> Compiler<'source, 'c> {
         };
 
         compiler.advance();
-        compiler.expression();
-        compiler.consume(TokenKind::Eof, "Expect end of expression");
+
+        while !compiler.match_advance(TokenKind::Eof) {
+            compiler.declaration();
+        }
         compiler.end();
 
         match compiler.had_error {
             false => Ok(()),
             true => Err(TACError::CompileError),
         }
+    }
+
+    fn synchronize(&mut self) {
+        self.panic_mode = false;
+
+        while self.current.kind != TokenKind::Eof {
+            if self.previous.kind == TokenKind::NewLine {
+                return;
+            }
+
+            self.advance();
+        }
+    }
+
+    fn declaration(&mut self) {
+        self.statement();
+
+        if self.panic_mode {
+            self.synchronize();
+        }
+    }
+
+    fn statement(&mut self) {
+        if self.match_advance(TokenKind::Print) {
+            self.print_statement(false);
+        } else if self.match_advance(TokenKind::PrintLn) {
+            self.print_statement(true);
+        } else {
+            self.expression_statement();
+        }
+    }
+
+    fn print_statement(&mut self, nl: bool) {
+        self.expression();
+        self.emit_instruction(Instruction::PRINT(nl))
+    }
+
+    fn expression_statement(&mut self) {
+        self.expression();
+        self.emit_instruction(Instruction::POP)
     }
 
     fn expression(&mut self) {
@@ -252,6 +294,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
             Option<CompilerFn<'source, 'c>>,
             Precedence,
         ) = match kind {
+            TokenKind::NewLine => (None, None, Precedence::None),
             TokenKind::LeftParen => (None, None, Precedence::None),
             TokenKind::RightParen => (None, None, Precedence::None),
             TokenKind::LeftBrace => (None, None, Precedence::None),
@@ -311,7 +354,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
     }
 
     fn end(&mut self) {
-        self.emit_instruction(Instruction::RETURN);
+        self.emit_instruction(Instruction::HALT);
         #[cfg(feature = "debug_print_code")]
         if self.had_error {
             let disassembler = Disassembler::new(self.chunk);
@@ -330,12 +373,24 @@ impl<'source, 'c> Compiler<'source, 'c> {
     }
 
     fn consume(&mut self, kind: TokenKind, message: &str) {
-        if self.current.kind == kind {
-            self.advance();
+        if self.match_advance(kind) {
             return;
         }
 
         self.error_at_current(message);
+    }
+
+    fn match_advance(&mut self, kind: TokenKind) -> bool {
+        if self.check(kind) {
+            self.advance();
+            return true;
+        }
+
+        return false;
+    }
+
+    fn check(&mut self, kind: TokenKind) -> bool {
+        self.current.kind == kind
     }
 
     fn advance(&mut self) {

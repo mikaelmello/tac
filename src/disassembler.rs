@@ -42,6 +42,9 @@ impl<'a> Disassembler<'a> {
             Instruction::EQUAL => println!("EQUAL"),
             Instruction::GREATER => println!("GREATER"),
             Instruction::LESS => println!("LESS"),
+            Instruction::PRINT(nl) => println!("PRINT nl:{}", nl),
+            Instruction::POP => println!("POP"),
+            Instruction::HALT => println!("HALT"),
         }
     }
 

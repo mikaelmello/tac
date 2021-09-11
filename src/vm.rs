@@ -97,6 +97,7 @@ impl VirtualMachine {
             self.ip += 1;
 
             match instruction {
+                Instruction::HALT => return Ok(()),
                 Instruction::RETURN => return self.r#return(),
                 Instruction::NEGATE => self.negate()?,
                 Instruction::NOT => self.not()?,
@@ -110,17 +111,36 @@ impl VirtualMachine {
                 Instruction::EQUAL => binary_op_f!(self, eq),
                 Instruction::GREATER => binary_op_f!(self, gt),
                 Instruction::LESS => binary_op_f!(self, lt),
+                Instruction::PRINT(nl) => self.print(nl)?,
+                Instruction::POP => self.pop()?,
             }
         }
     }
 
     fn r#return(&mut self) -> TACResult<()> {
+        return Ok(());
+    }
+
+    fn print(&mut self, nl: bool) -> TACResult<()> {
+        let value = self
+            .stack
+            .pop()
+            .ok_or_else(|| self.report_rte("No value in the stack to print".into()))?;
+
+        let suffix = match nl {
+            true => "\n",
+            false => "",
+        };
+
+        print!("{}{}", value, suffix);
+        return Ok(());
+    }
+
+    fn pop(&mut self) -> TACResult<()> {
         let value = self
             .stack
             .pop()
             .ok_or_else(|| self.report_rte("No value in the stack to return".into()))?;
-
-        println!("{}", value);
         return Ok(());
     }
 

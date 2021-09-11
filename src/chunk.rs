@@ -15,7 +15,10 @@ pub enum Instruction {
     EQUAL,
     GREATER,
     LESS,
+    POP,
+    PRINT(bool),
     CONSTANT(u16),
+    HALT,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -86,14 +89,20 @@ impl Chunk {
     }
 
     pub fn get_line(&self, instruction_idx: usize) -> usize {
-        assert!(
-            instruction_idx < self.code.len(),
-            "Do not try to get line of instruction not added to chunk"
-        );
-        assert!(
-            !self.lines.is_empty(),
-            "Do not try to get line index when none were added"
-        );
+        if instruction_idx >= self.code.len() {
+            eprintln!(
+                "Trying to get line of instruction {} where only {} exist",
+                instruction_idx,
+                self.code.len()
+            );
+        }
+
+        if instruction_idx >= self.code.len() {
+            eprintln!(
+                "Trying to get line of instruction {} when no line information exists",
+                instruction_idx,
+            );
+        }
 
         let mut left = 0;
         let mut right = self.lines.len() - 1;

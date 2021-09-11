@@ -17,6 +17,7 @@ pub enum TokenKind {
     Slash,
     Star,
     Percent,
+    NewLine,
 
     // One Or Two Character Tokens.
     Bang,

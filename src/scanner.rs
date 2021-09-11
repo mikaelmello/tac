@@ -42,6 +42,7 @@ impl<'source> Scanner<'source> {
         let c = self.advance();
 
         match c {
+            '\n' => self.make_token(TokenKind::NewLine),
             '(' => self.make_token(TokenKind::LeftParen),
             ')' => self.make_token(TokenKind::RightParen),
             '{' => self.make_token(TokenKind::LeftBrace),
@@ -207,6 +208,10 @@ impl<'source> Scanner<'source> {
 
     fn skip_non_tokens(&mut self) {
         while let Some(c) = self.peek() {
+            if c == '\n' {
+                break;
+            }
+
             match c.is_whitespace() {
                 true => self.advance(),
                 false => break,
