@@ -15,6 +15,7 @@ pub enum Instruction {
     EQUAL,
     GREATER,
     LESS,
+    GOTO(u16),
     POP,
     PRINT(bool),
     CONSTANT(u16),

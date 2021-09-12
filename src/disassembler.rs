@@ -45,6 +45,7 @@ impl<'a> Disassembler<'a> {
             Instruction::PRINT(nl) => eprintln!("PRINT nl:{}", nl),
             Instruction::POP => eprintln!("POP"),
             Instruction::HALT => eprintln!("HALT"),
+            Instruction::GOTO(ip) => eprintln!("JUMP {:04}", ip),
         }
     }
 

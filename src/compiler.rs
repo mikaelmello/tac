@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     chunk::{Chunk, Instruction},
     disassembler::Disassembler,
@@ -78,6 +80,8 @@ pub struct Compiler<'source, 'c> {
     panic_mode: bool,
     current: Token<'source>,
     previous: Token<'source>,
+    labels: HashMap<&'source str, usize>,
+    pending_labels: HashMap<&'source str, Vec<(usize, usize)>>,
 }
 
 impl<'source, 'c> Compiler<'source, 'c> {
@@ -89,6 +93,8 @@ impl<'source, 'c> Compiler<'source, 'c> {
             panic_mode: false,
             current: Token::synthetic(""),
             previous: Token::synthetic(""),
+            labels: HashMap::new(),
+            pending_labels: HashMap::new(),
         };
 
         compiler.advance();
@@ -125,23 +131,31 @@ impl<'source, 'c> Compiler<'source, 'c> {
     }
 
     fn statement(&mut self) {
-        if self.match_advance(TokenKind::Print) {
-            self.print_statement(false);
-        } else if self.match_advance(TokenKind::PrintLn) {
-            self.print_statement(true);
-        } else {
-            self.expression_statement();
+        self.advance();
+
+        match self.previous.kind {
+            TokenKind::Print | TokenKind::PrintLn => self.print_statement(),
+            TokenKind::Goto => self.goto(),
+            _ => self.error("Invalid statement"),
         }
     }
 
-    fn print_statement(&mut self, nl: bool) {
-        self.expression();
-        self.emit_instruction(Instruction::PRINT(nl))
+    fn goto(&mut self) {
+        self.consume(TokenKind::Identifier, "Missing label for 'goto' statement");
+
+        let label = self.previous.lexeme;
+
+        let pending = self.pending_labels.entry(label).or_insert_with(|| vec![]);
+        pending.push((self.chunk.code.len(), self.previous.line));
+
+        self.emit_instruction(Instruction::GOTO(0));
     }
 
-    fn expression_statement(&mut self) {
+    fn print_statement(&mut self) {
+        let nl = self.previous.kind == TokenKind::PrintLn;
+
         self.expression();
-        self.emit_instruction(Instruction::POP)
+        self.emit_instruction(Instruction::PRINT(nl))
     }
 
     fn expression(&mut self) {
@@ -353,8 +367,45 @@ impl<'source, 'c> Compiler<'source, 'c> {
         }
     }
 
+    fn update_pending_labels(&mut self) {
+        let mut patches: Vec<(usize, usize)> = vec![];
+        let mut missing_labels: Vec<(&str, usize)> = vec![];
+
+        for (k, v) in &self.pending_labels {
+            if let Some(idx) = self.labels.get(k) {
+                for (instruction_idx, _) in v {
+                    patches.push((*instruction_idx, *idx));
+                }
+            } else if let Some((_, first_use)) = v.first() {
+                missing_labels.push((*k, *first_use));
+            }
+        }
+
+        for (label, first_use) in missing_labels {
+            self.error(&format!(
+                "Missing label '{}', first used in line {}",
+                label, first_use
+            ));
+        }
+
+        for (idx, val) in patches {
+            self.patch_jump(idx, val as u16)
+        }
+    }
+
+    fn patch_jump(&mut self, idx: usize, val: u16) {
+        match self.chunk.code.get_mut(idx) {
+            Some(i) => match i {
+                Instruction::GOTO(idx) => *idx = val,
+                _ => panic!("Patching jump led to invalid instruction"),
+            },
+            None => panic!("Patching jump led to invalid index"),
+        }
+    }
+
     fn end(&mut self) {
         self.emit_instruction(Instruction::HALT);
+        self.update_pending_labels();
         #[cfg(feature = "debug_print_code")]
         if self.had_error {
             let disassembler = Disassembler::new(self.chunk);

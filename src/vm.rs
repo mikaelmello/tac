@@ -1,3 +1,5 @@
+use std::io::{stdout, Write};
+
 use crate::{
     chunk::{Chunk, Instruction},
     compiler::Compiler,
@@ -113,6 +115,7 @@ impl VirtualMachine {
                 Instruction::LESS => binary_op_f!(self, lt),
                 Instruction::PRINT(nl) => self.print(nl)?,
                 Instruction::POP => self.pop()?,
+                Instruction::GOTO(ip) => self.ip = ip as usize,
             }
         }
     }
