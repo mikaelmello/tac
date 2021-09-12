@@ -128,6 +128,7 @@ impl<'source> Scanner<'source> {
             "false" => Some(TokenKind::False),
             "print" => Some(TokenKind::Print),
             "println" => Some(TokenKind::PrintLn),
+            "halt" => Some(TokenKind::Halt),
             "scan" => Some(TokenKind::Scan),
             "u64" => Some(TokenKind::U64KW),
             "i64" => Some(TokenKind::I64KW),

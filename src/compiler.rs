@@ -100,7 +100,11 @@ impl<'source, 'c> Compiler<'source, 'c> {
         compiler.advance();
 
         while !compiler.match_advance(TokenKind::Eof) {
-            compiler.declaration();
+            compiler.statement();
+
+            if compiler.panic_mode {
+                compiler.synchronize();
+            }
         }
         compiler.end();
 
@@ -122,25 +126,60 @@ impl<'source, 'c> Compiler<'source, 'c> {
         }
     }
 
-    fn declaration(&mut self) {
-        self.statement();
-
-        if self.panic_mode {
-            self.synchronize();
-        }
-    }
-
     fn statement(&mut self) {
         self.advance();
 
         match self.previous.kind {
             TokenKind::Print | TokenKind::PrintLn => self.print_statement(),
-            TokenKind::Goto => self.goto(),
+            TokenKind::If | TokenKind::IfFalse => self.if_statement(),
+            TokenKind::Goto => self.goto_statement(),
+            TokenKind::Halt => self.emit_instruction(Instruction::HALT),
+
+            TokenKind::NewLine => return,
+            TokenKind::Equal => self.error("Assignments must have a variable on the left side"),
+            TokenKind::Scan => self.error("Return value of scan must be assigned to a variable"),
             _ => self.error("Invalid statement"),
+        }
+
+        match self.current.kind {
+            TokenKind::NewLine | TokenKind::Eof => return,
+            _ => self.error_at_current("There must be at most one statement per line"),
         }
     }
 
-    fn goto(&mut self) {
+    fn r#return(&mut self) {}
+
+    fn if_statement(&mut self) {
+        let negate = self.previous.kind == TokenKind::IfFalse;
+        let statement = match self.previous.kind {
+            TokenKind::If => "if",
+            TokenKind::IfFalse => "ifFalse",
+            _ => panic!("Invalid token in if_statement()"),
+        };
+
+        self.expression();
+        self.consume(
+            TokenKind::Goto,
+            &format!("Missing 'goto' keyword after {} statement", statement),
+        );
+        self.consume(
+            TokenKind::Identifier,
+            &format!("Missing label after {} statement", statement),
+        );
+
+        let label = self.previous.lexeme;
+
+        if negate {
+            self.emit_instruction(Instruction::NOT);
+        }
+
+        let pending = self.pending_labels.entry(label).or_insert_with(|| vec![]);
+        pending.push((self.chunk.code.len(), self.previous.line));
+
+        self.emit_instruction(Instruction::JUMP_IF(0));
+    }
+
+    fn goto_statement(&mut self) {
         self.consume(TokenKind::Identifier, "Missing label for 'goto' statement");
 
         let label = self.previous.lexeme;
@@ -308,6 +347,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
             Option<CompilerFn<'source, 'c>>,
             Precedence,
         ) = match kind {
+            TokenKind::Halt => (None, None, Precedence::None),
             TokenKind::NewLine => (None, None, Precedence::None),
             TokenKind::LeftParen => (None, None, Precedence::None),
             TokenKind::RightParen => (None, None, Precedence::None),
@@ -381,12 +421,12 @@ impl<'source, 'c> Compiler<'source, 'c> {
             }
         }
 
-        for (label, first_use) in missing_labels {
-            self.error(&format!(
-                "Missing label '{}', first used in line {}",
-                label, first_use
-            ));
-        }
+        // for (label, first_use) in missing_labels {
+        //     self.error(&format!(
+        //         "Missing label '{}', first used in line {}",
+        //         label, first_use
+        //     ));
+        // }
 
         for (idx, val) in patches {
             self.patch_jump(idx, val as u16)
@@ -397,6 +437,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
         match self.chunk.code.get_mut(idx) {
             Some(i) => match i {
                 Instruction::GOTO(idx) => *idx = val,
+                Instruction::JUMP_IF(idx) => *idx = val,
                 _ => panic!("Patching jump led to invalid instruction"),
             },
             None => panic!("Patching jump led to invalid index"),
@@ -404,8 +445,12 @@ impl<'source, 'c> Compiler<'source, 'c> {
     }
 
     fn end(&mut self) {
-        self.emit_instruction(Instruction::HALT);
+        if self.chunk.code.last() != Some(&Instruction::HALT) {
+            self.emit_instruction(Instruction::HALT);
+        }
+
         self.update_pending_labels();
+
         #[cfg(feature = "debug_print_code")]
         if self.had_error {
             let disassembler = Disassembler::new(self.chunk);

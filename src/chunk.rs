@@ -15,6 +15,7 @@ pub enum Instruction {
     EQUAL,
     GREATER,
     LESS,
+    JUMP_IF(u16),
     GOTO(u16),
     POP,
     PRINT(bool),
@@ -121,9 +122,9 @@ impl Chunk {
                         if mid == 0 {
                             break;
                         }
-                        right = mid - 1;
-                    } else {
                         left = mid + 1;
+                    } else {
+                        right = mid - 1;
                     }
                 }
                 None => panic!("Invalid mid index when looking for line"),

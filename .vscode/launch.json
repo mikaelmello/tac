@@ -12,14 +12,16 @@
         "args": [
           "build",
           "--bin=tac",
-          "--package=tac"
+          "--package=tac",
         ],
         "filter": {
           "name": "tac",
           "kind": "bin"
         }
       },
-      "args": [],
+      "args": [
+        "sample.tac"
+      ],
       "cwd": "${workspaceFolder}"
     },
     {

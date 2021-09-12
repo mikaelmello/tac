@@ -49,6 +49,7 @@ pub enum TokenKind {
     Print,
     PrintLn,
     Scan,
+    Halt,
     U64KW,
     I64KW,
     F64KW,

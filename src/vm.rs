@@ -1,5 +1,3 @@
-use std::io::{stdout, Write};
-
 use crate::{
     chunk::{Chunk, Instruction},
     compiler::Compiler,
@@ -116,6 +114,7 @@ impl VirtualMachine {
                 Instruction::PRINT(nl) => self.print(nl)?,
                 Instruction::POP => self.pop()?,
                 Instruction::GOTO(ip) => self.ip = ip as usize,
+                Instruction::JUMP_IF(ip) => self.jump_if(ip)?,
             }
         }
     }
@@ -140,11 +139,26 @@ impl VirtualMachine {
     }
 
     fn pop(&mut self) -> TACResult<()> {
+        match self.stack.pop() {
+            Some(_) => Ok(()),
+            None => Err(self.report_rte("No value in the stack to pop".into())),
+        }
+    }
+
+    fn jump_if(&mut self, ip: u16) -> TACResult<()> {
         let value = self
             .stack
             .pop()
-            .ok_or_else(|| self.report_rte("No value in the stack to return".into()))?;
-        return Ok(());
+            .ok_or_else(|| self.report_rte("No value in the stack to check condition".into()))?;
+
+        match value {
+            Value::Bool(true) => Ok(self.ip = ip as usize),
+            Value::Bool(false) => Ok(()),
+            v => Err(self.report_rte(format!(
+                "Invalid type '{}' for condition, 'bool' required.",
+                v.type_info(),
+            ))),
+        }
     }
 
     fn negate(&mut self) -> TACResult<()> {
