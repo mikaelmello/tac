@@ -133,7 +133,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::Print | TokenKind::PrintLn => self.print_statement(),
             TokenKind::If | TokenKind::IfFalse => self.if_statement(),
             TokenKind::Goto => self.goto_statement(),
-            TokenKind::Halt => self.emit_instruction(Instruction::HALT),
+            TokenKind::Halt => self.emit_instruction(Instruction::Halt),
 
             TokenKind::NewLine => return,
             TokenKind::Equal => self.error("Assignments must have a variable on the left side"),
@@ -170,13 +170,13 @@ impl<'source, 'c> Compiler<'source, 'c> {
         let label = self.previous.lexeme;
 
         if negate {
-            self.emit_instruction(Instruction::NOT);
+            self.emit_instruction(Instruction::Not);
         }
 
         let pending = self.pending_labels.entry(label).or_insert_with(|| vec![]);
         pending.push((self.chunk.code.len(), self.previous.line));
 
-        self.emit_instruction(Instruction::JUMP_IF(0));
+        self.emit_instruction(Instruction::JumpIf(0));
     }
 
     fn goto_statement(&mut self) {
@@ -187,14 +187,14 @@ impl<'source, 'c> Compiler<'source, 'c> {
         let pending = self.pending_labels.entry(label).or_insert_with(|| vec![]);
         pending.push((self.chunk.code.len(), self.previous.line));
 
-        self.emit_instruction(Instruction::GOTO(0));
+        self.emit_instruction(Instruction::Goto(0));
     }
 
     fn print_statement(&mut self) {
         let nl = self.previous.kind == TokenKind::PrintLn;
 
         self.expression();
-        self.emit_instruction(Instruction::PRINT(nl))
+        self.emit_instruction(Instruction::Print(nl))
     }
 
     fn expression(&mut self) {
@@ -233,8 +233,8 @@ impl<'source, 'c> Compiler<'source, 'c> {
         self.parse_precedence(Precedence::Primary);
 
         match kind {
-            TokenKind::Minus => self.emit_instruction(Instruction::NEGATE),
-            TokenKind::Bang => self.emit_instruction(Instruction::NOT),
+            TokenKind::Minus => self.emit_instruction(Instruction::Negate),
+            TokenKind::Bang => self.emit_instruction(Instruction::Not),
             _ => panic!("Unreachable - match arm not covered in unary()"),
         }
     }
@@ -244,19 +244,19 @@ impl<'source, 'c> Compiler<'source, 'c> {
         self.parse_precedence(Precedence::Primary);
 
         match kind {
-            TokenKind::Plus => self.emit_instruction(Instruction::ADD),
-            TokenKind::Minus => self.emit_instruction(Instruction::SUBTRACT),
-            TokenKind::Slash => self.emit_instruction(Instruction::DIVIDE),
-            TokenKind::Star => self.emit_instruction(Instruction::MULTIPLY),
-            TokenKind::EqualEqual => self.emit_instruction(Instruction::EQUAL),
-            TokenKind::BangEqual => self.emit_instructions(&[Instruction::EQUAL, Instruction::NOT]),
-            TokenKind::Greater => self.emit_instruction(Instruction::GREATER),
+            TokenKind::Plus => self.emit_instruction(Instruction::Add),
+            TokenKind::Minus => self.emit_instruction(Instruction::Subtract),
+            TokenKind::Slash => self.emit_instruction(Instruction::Divide),
+            TokenKind::Star => self.emit_instruction(Instruction::Multiply),
+            TokenKind::EqualEqual => self.emit_instruction(Instruction::Equal),
+            TokenKind::BangEqual => self.emit_instructions(&[Instruction::Equal, Instruction::Not]),
+            TokenKind::Greater => self.emit_instruction(Instruction::Greater),
             TokenKind::GreaterEqual => {
-                self.emit_instructions(&[Instruction::LESS, Instruction::NOT])
+                self.emit_instructions(&[Instruction::Less, Instruction::Not])
             }
-            TokenKind::Less => self.emit_instruction(Instruction::LESS),
+            TokenKind::Less => self.emit_instruction(Instruction::Less),
             TokenKind::LessEqual => {
-                self.emit_instructions(&[Instruction::GREATER, Instruction::NOT])
+                self.emit_instructions(&[Instruction::Greater, Instruction::Not])
             }
             _ => panic!("Unreachable - match arm not covered in binary()"),
         }
@@ -264,8 +264,8 @@ impl<'source, 'c> Compiler<'source, 'c> {
 
     fn literal(&mut self) {
         match self.previous.kind {
-            TokenKind::False => self.emit_instruction(Instruction::FALSE),
-            TokenKind::True => self.emit_instruction(Instruction::TRUE),
+            TokenKind::False => self.emit_instruction(Instruction::False),
+            TokenKind::True => self.emit_instruction(Instruction::True),
             _ => panic!("Unreachable - match arm not covered in literal()"),
         }
     }
@@ -402,7 +402,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
 
     fn make_constant(&mut self, value: Value) {
         match self.chunk.add_constant(value) {
-            Ok(idx) => self.emit_instruction(Instruction::CONSTANT(idx)),
+            Ok(idx) => self.emit_instruction(Instruction::Constant(idx)),
             Err(msg) => self.error(msg),
         }
     }
@@ -436,8 +436,8 @@ impl<'source, 'c> Compiler<'source, 'c> {
     fn patch_jump(&mut self, idx: usize, val: u16) {
         match self.chunk.code.get_mut(idx) {
             Some(i) => match i {
-                Instruction::GOTO(idx) => *idx = val,
-                Instruction::JUMP_IF(idx) => *idx = val,
+                Instruction::Goto(idx) => *idx = val,
+                Instruction::JumpIf(idx) => *idx = val,
                 _ => panic!("Patching jump led to invalid instruction"),
             },
             None => panic!("Patching jump led to invalid index"),
@@ -445,8 +445,8 @@ impl<'source, 'c> Compiler<'source, 'c> {
     }
 
     fn end(&mut self) {
-        if self.chunk.code.last() != Some(&Instruction::HALT) {
-            self.emit_instruction(Instruction::HALT);
+        if self.chunk.code.last() != Some(&Instruction::Halt) {
+            self.emit_instruction(Instruction::Halt);
         }
 
         self.update_pending_labels();
