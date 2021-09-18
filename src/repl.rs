@@ -10,9 +10,8 @@ pub fn repl() -> io::Result<()> {
     // `()` can be used when no completer is required
     let mut rl = Editor::<()>::new();
 
-    println!("TAC {}", VERSION);
-
     let mut vm = VirtualMachine::new();
+    println!("TAC {}", VERSION);
 
     loop {
         let readline = rl.readline(">>> ");

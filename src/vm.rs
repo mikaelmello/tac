@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     chunk::{Chunk, Instruction},
     compiler::Compiler,
@@ -6,25 +8,31 @@ use crate::{
     value::Value,
 };
 
-pub struct VirtualMachine {
-    current_chunk: Option<Chunk>,
+#[derive(Default, Debug)]
+pub struct Frame {
     stack: Vec<Value>,
+    st: HashMap<String, usize>,
+}
+
+pub struct VirtualMachine {
+    chunk: Chunk,
+    frames: Vec<Frame>,
     ip: usize,
 }
 
 macro_rules! binary_op {
     ($self:expr,$oper:tt) => {{
-        let b = match $self.stack.pop() {
+        let b = match $self.current_stack().pop() {
             Some(val) => val,
             None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
         };
-        let a = match $self.stack.pop() {
+        let a = match $self.current_stack().pop() {
             Some(val) => val,
             None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
         };
         let res = a $oper b;
         match res {
-            Ok(val) => $self.stack.push(val),
+            Ok(val) => $self.current_stack().push(val),
             Err(msg) => return Err($self.report_rte(msg)),
         };
     }};
@@ -32,17 +40,17 @@ macro_rules! binary_op {
 
 macro_rules! binary_op_f {
     ($self:expr,$oper:ident) => {{
-        let b = match $self.stack.pop() {
+        let b = match $self.current_stack().pop() {
             Some(val) => val,
             None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
         };
-        let a = match $self.stack.pop() {
+        let a = match $self.current_stack().pop() {
             Some(val) => val,
             None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
         };
         let res = Value::$oper(a, b);
         match res {
-            Ok(val) => $self.stack.push(val),
+            Ok(val) => $self.current_stack().push(val),
             Err(msg) => return Err($self.report_rte(msg)),
         };
     }};
@@ -51,34 +59,34 @@ macro_rules! binary_op_f {
 impl VirtualMachine {
     pub fn new() -> Self {
         Self {
-            current_chunk: None,
-            stack: vec![],
+            chunk: Chunk::new(),
+            frames: vec![],
             ip: 0,
         }
     }
 
     pub fn interpret(&mut self, source: &str) -> TACResult<()> {
-        let mut chunk = Chunk::new();
-        self.stack.clear();
+        self.chunk = Chunk::new();
+        self.frames.clear();
+        self.frames.push(Frame::default());
         self.ip = 0;
 
-        Compiler::compile(source, &mut chunk)?;
-
-        self.current_chunk = Some(chunk);
+        Compiler::compile(source, &mut self.chunk)?;
 
         self.run()
     }
 
-    fn current_chunk(&self) -> TACResult<&Chunk> {
-        match self.current_chunk.as_ref() {
-            Some(c) => Ok(c),
-            None => Err(self.report_rte("No chunk to run code from".into())),
-        }
+    fn current_frame(&mut self) -> &mut Frame {
+        self.frames.last_mut().unwrap()
+    }
+
+    fn current_stack(&mut self) -> &mut Vec<Value> {
+        &mut self.current_frame().stack
     }
 
     fn run(&mut self) -> TACResult<()> {
         loop {
-            let instruction = match self.current_chunk()?.code.get(self.ip) {
+            let instruction = match self.chunk.code.get(self.ip) {
                 Some(i) => *i,
                 None => {
                     return Err(self.report_rte(
@@ -90,7 +98,7 @@ impl VirtualMachine {
 
             #[cfg(feature = "debug_trace_execution")]
             {
-                let dis = Disassembler::new(self.current_chunk()?);
+                let dis = Disassembler::new(&self.chunk);
                 dis.instruction(self.ip, &instruction);
             }
 
@@ -102,8 +110,8 @@ impl VirtualMachine {
                 Instruction::Negate => self.negate()?,
                 Instruction::Not => self.not()?,
                 Instruction::Constant(addr) => self.constant(addr)?,
-                Instruction::True => self.stack.push(Value::Bool(true)),
-                Instruction::False => self.stack.push(Value::Bool(false)),
+                Instruction::True => self.current_stack().push(Value::Bool(true)),
+                Instruction::False => self.current_stack().push(Value::Bool(false)),
                 Instruction::Add => binary_op!(self, +),
                 Instruction::Subtract => binary_op!(self, -),
                 Instruction::Multiply => binary_op!(self, *),
@@ -125,7 +133,7 @@ impl VirtualMachine {
 
     fn print(&mut self, nl: bool) -> TACResult<()> {
         let value = self
-            .stack
+            .current_stack()
             .pop()
             .ok_or_else(|| self.report_rte("No value in the stack to print".into()))?;
 
@@ -139,7 +147,7 @@ impl VirtualMachine {
     }
 
     fn pop(&mut self) -> TACResult<()> {
-        match self.stack.pop() {
+        match self.current_stack().pop() {
             Some(_) => Ok(()),
             None => Err(self.report_rte("No value in the stack to pop".into())),
         }
@@ -147,7 +155,7 @@ impl VirtualMachine {
 
     fn jump_if(&mut self, ip: u16) -> TACResult<()> {
         let value = self
-            .stack
+            .current_stack()
             .pop()
             .ok_or_else(|| self.report_rte("No value in the stack to check condition".into()))?;
 
@@ -165,7 +173,11 @@ impl VirtualMachine {
     }
 
     fn negate(&mut self) -> TACResult<()> {
-        match self.stack.last_mut().map(Value::arithmetic_negate) {
+        match self
+            .current_stack()
+            .last_mut()
+            .map(Value::arithmetic_negate)
+        {
             Some(Ok(_)) => Ok(()),
             Some(Err(msg)) => Err(self.report_rte(msg)),
             None => Err(self.report_rte(
@@ -176,7 +188,7 @@ impl VirtualMachine {
     }
 
     fn not(&mut self) -> TACResult<()> {
-        match self.stack.last_mut().map(Value::logic_negate) {
+        match self.current_stack().last_mut().map(Value::logic_negate) {
             Some(Ok(_)) => Ok(()),
             Some(Err(msg)) => Err(self.report_rte(msg)),
             None => Err(self.report_rte(
@@ -188,16 +200,16 @@ impl VirtualMachine {
 
     fn constant(&mut self, addr: u16) -> TACResult<()> {
         let value = self.read_constant(addr)?;
-        self.stack.push(value);
+        self.current_stack().push(value);
         Ok(())
     }
 
     fn read_constant(&mut self, addr: u16) -> TACResult<Value> {
-        Ok(self.current_chunk()?.get_constant(addr))
+        Ok(self.chunk.get_constant(addr))
     }
 
     fn report_rte(&self, message: String) -> TACError {
-        let line = self.current_chunk().unwrap().get_line(self.ip);
+        let line = self.chunk.get_line(self.ip);
         eprintln!("{}", message);
         eprintln!("[line {}] in script", line);
 
