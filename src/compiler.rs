@@ -9,70 +9,6 @@ use crate::{
     value::Value,
 };
 
-#[derive(Copy, Clone, PartialOrd, PartialEq)]
-enum Precedence {
-    None,
-    Assignment, // =
-    Or,         // or
-    And,        // and
-    Equality,   // == !=
-    Comparison, // < > <= >=
-    Term,       // + -
-    Factor,     // * /
-    Unary,      // ! -
-    Call,       // . ()
-    Primary,
-}
-
-impl Precedence {
-    fn next(&self) -> Precedence {
-        match self {
-            Precedence::None => Precedence::Assignment,
-            Precedence::Assignment => Precedence::Or,
-            Precedence::Or => Precedence::And,
-            Precedence::And => Precedence::Equality,
-            Precedence::Equality => Precedence::Comparison,
-            Precedence::Comparison => Precedence::Term,
-            Precedence::Term => Precedence::Factor,
-            Precedence::Factor => Precedence::Unary,
-            Precedence::Unary => Precedence::Call,
-            Precedence::Call => Precedence::Primary,
-            Precedence::Primary => Precedence::None,
-        }
-    }
-}
-
-type CompilerFn<'source, 'c> = fn(&mut Compiler<'source, 'c>);
-
-#[derive(Copy, Clone)]
-struct CompilerRule<'source, 'c> {
-    prefix: Option<CompilerFn<'source, 'c>>,
-    infix: Option<CompilerFn<'source, 'c>>,
-    precedence: Precedence,
-}
-
-impl<'source, 'c>
-    From<(
-        Option<CompilerFn<'source, 'c>>,
-        Option<CompilerFn<'source, 'c>>,
-        Precedence,
-    )> for CompilerRule<'source, 'c>
-{
-    fn from(
-        (prefix, infix, precedence): (
-            Option<CompilerFn<'source, 'c>>,
-            Option<CompilerFn<'source, 'c>>,
-            Precedence,
-        ),
-    ) -> Self {
-        Self {
-            prefix,
-            infix,
-            precedence,
-        }
-    }
-}
-
 pub struct Compiler<'source, 'c> {
     scanner: Scanner<'source>,
     chunk: &'c mut Chunk,
@@ -200,7 +136,8 @@ impl<'source, 'c> Compiler<'source, 'c> {
             _ => panic!("Invalid token in if_statement()"),
         };
 
-        self.expression();
+        self.operand();
+
         self.consume(
             TokenKind::Goto,
             &format!("Missing 'goto' keyword after {} statement", statement),
@@ -236,80 +173,23 @@ impl<'source, 'c> Compiler<'source, 'c> {
     fn print_statement(&mut self) {
         let nl = self.previous.kind == TokenKind::PrintLn;
 
-        self.expression();
+        self.operand();
         self.emit_instruction(Instruction::Print(nl))
     }
 
-    fn expression(&mut self) {
-        self.parse_precedence(Precedence::Assignment)
-    }
-
-    fn parse_precedence(&mut self, precedence: Precedence) {
+    fn operand(&mut self) {
         self.advance();
 
-        let rule = self.get_rule(self.previous.kind);
-        let prefix_rule = rule.prefix;
-
-        let prefix_rule = match prefix_rule {
-            Some(rule) => rule,
-            None => {
-                return self.error("Missing expression");
-            }
-        };
-
-        prefix_rule(self);
-
-        if precedence <= self.get_rule(self.current.kind).precedence {
-            self.advance();
-
-            let infix_rule = self
-                .get_rule(self.previous.kind)
-                .infix
-                .expect("Expect infix rule");
-
-            infix_rule(self);
-        }
-    }
-
-    fn unary(&mut self) {
-        let kind = self.previous.kind;
-        self.parse_precedence(Precedence::Primary);
-
-        match kind {
-            TokenKind::Minus => self.emit_instruction(Instruction::Negate),
-            TokenKind::Bang => self.emit_instruction(Instruction::Not),
-            _ => panic!("Unreachable - match arm not covered in unary()"),
-        }
-    }
-
-    fn binary(&mut self) {
-        let kind = self.previous.kind;
-        self.parse_precedence(Precedence::Primary);
-
-        match kind {
-            TokenKind::Plus => self.emit_instruction(Instruction::Add),
-            TokenKind::Minus => self.emit_instruction(Instruction::Subtract),
-            TokenKind::Slash => self.emit_instruction(Instruction::Divide),
-            TokenKind::Star => self.emit_instruction(Instruction::Multiply),
-            TokenKind::EqualEqual => self.emit_instruction(Instruction::Equal),
-            TokenKind::BangEqual => self.emit_instructions(&[Instruction::Equal, Instruction::Not]),
-            TokenKind::Greater => self.emit_instruction(Instruction::Greater),
-            TokenKind::GreaterEqual => {
-                self.emit_instructions(&[Instruction::Less, Instruction::Not])
-            }
-            TokenKind::Less => self.emit_instruction(Instruction::Less),
-            TokenKind::LessEqual => {
-                self.emit_instructions(&[Instruction::Greater, Instruction::Not])
-            }
-            _ => panic!("Unreachable - match arm not covered in binary()"),
-        }
-    }
-
-    fn literal(&mut self) {
         match self.previous.kind {
-            TokenKind::False => self.emit_instruction(Instruction::False),
+            TokenKind::Identifier => todo!("Implement variable handling for operand method"),
             TokenKind::True => self.emit_instruction(Instruction::True),
-            _ => panic!("Unreachable - match arm not covered in literal()"),
+            TokenKind::False => self.emit_instruction(Instruction::False),
+            TokenKind::Char => self.char(),
+            TokenKind::Number => self.number(),
+
+            // errors
+            TokenKind::String => self.error("String literals are only allowed in the data section"),
+            _ => self.error("Invalid operand, expected literal value or variable name"),
         }
     }
 
@@ -383,64 +263,17 @@ impl<'source, 'c> Compiler<'source, 'c> {
         };
     }
 
-    fn get_rule(&mut self, kind: TokenKind) -> CompilerRule<'source, 'c> {
-        let rule: (
-            Option<CompilerFn<'source, 'c>>,
-            Option<CompilerFn<'source, 'c>>,
-            Precedence,
-        ) = match kind {
-            TokenKind::Halt => (None, None, Precedence::None),
-            TokenKind::NewLine => (None, None, Precedence::None),
-            TokenKind::LeftParen => (None, None, Precedence::None),
-            TokenKind::RightParen => (None, None, Precedence::None),
-            TokenKind::LeftBrace => (None, None, Precedence::None),
-            TokenKind::RightBrace => (None, None, Precedence::None),
-            TokenKind::Comma => (None, None, Precedence::None),
-            TokenKind::Dot => (None, None, Precedence::None),
-            TokenKind::Minus => (Some(Self::unary), Some(Self::binary), Precedence::Term),
-            TokenKind::Plus => (None, Some(Self::binary), Precedence::Term),
-            TokenKind::Semicolon => (None, None, Precedence::None),
-            TokenKind::Slash => (None, Some(Self::binary), Precedence::Factor),
-            TokenKind::Star => (None, Some(Self::binary), Precedence::Factor),
-            TokenKind::Bang => (Some(Self::unary), None, Precedence::None),
-            TokenKind::BangEqual => (None, Some(Self::binary), Precedence::Equality),
-            TokenKind::Equal => (None, None, Precedence::None),
-            TokenKind::EqualEqual => (None, Some(Self::binary), Precedence::Equality),
-            TokenKind::Greater => (None, Some(Self::binary), Precedence::Comparison),
-            TokenKind::GreaterEqual => (None, Some(Self::binary), Precedence::Comparison),
-            TokenKind::Less => (None, Some(Self::binary), Precedence::Comparison),
-            TokenKind::LessEqual => (None, Some(Self::binary), Precedence::Comparison),
-            TokenKind::Identifier => (None, None, Precedence::None),
-            TokenKind::String => (None, None, Precedence::None),
-            TokenKind::Number => (Some(Self::number), None, Precedence::None),
-            TokenKind::If => (None, None, Precedence::None),
-            TokenKind::Print => (None, None, Precedence::None),
-            TokenKind::Return => (None, None, Precedence::None),
-            TokenKind::LeftBracket => (None, None, Precedence::None),
-            TokenKind::RightBracket => (None, None, Precedence::None),
-            TokenKind::Percent => (None, None, Precedence::None),
-            TokenKind::ShiftLeft => (None, None, Precedence::None),
-            TokenKind::ShiftRight => (None, None, Precedence::None),
-            TokenKind::Char => (None, None, Precedence::None),
-            TokenKind::IfFalse => (None, None, Precedence::None),
-            TokenKind::Goto => (None, None, Precedence::None),
-            TokenKind::Param => (None, None, Precedence::None),
-            TokenKind::Call => (None, None, Precedence::None),
-            TokenKind::True => (Some(Self::literal), None, Precedence::None),
-            TokenKind::False => (Some(Self::literal), None, Precedence::None),
-            TokenKind::PrintLn => (None, None, Precedence::None),
-            TokenKind::Scan => (None, None, Precedence::None),
-            TokenKind::U64KW => (None, None, Precedence::None),
-            TokenKind::I64KW => (None, None, Precedence::None),
-            TokenKind::F64KW => (None, None, Precedence::None),
-            TokenKind::CharKW => (None, None, Precedence::None),
-            TokenKind::BoolKW => (None, None, Precedence::None),
-            TokenKind::Error => (None, None, Precedence::None),
-            TokenKind::Eof => (None, None, Precedence::None),
-            TokenKind::Colon => (None, None, Precedence::None),
-        };
+    fn r#char(&mut self) {
+        assert_eq!(TokenKind::Char, self.previous.kind);
 
-        CompilerRule::from(rule)
+        let token = self.previous;
+        let lexeme = token.lexeme;
+        let character = lexeme.chars().nth(1);
+
+        match character {
+            Some(c) => self.make_constant(Value::Char(c)),
+            None => panic!("Invalid token of kind Char"),
+        }
     }
 
     fn make_constant(&mut self, value: Value) {

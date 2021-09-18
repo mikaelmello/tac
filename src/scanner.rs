@@ -74,6 +74,7 @@ impl<'source> Scanner<'source> {
             '>' => self.make_token(TokenKind::Greater),
 
             '"' => self.string(),
+            '\'' => self.char(),
 
             c if c.is_ascii_alphabetic() || c == '_' => self.identifier(),
             c if c.is_ascii_digit() => self.number(),
@@ -91,6 +92,26 @@ impl<'source> Scanner<'source> {
         } else {
             self.advance();
             self.make_token(TokenKind::String)
+        }
+    }
+
+    fn r#char(&mut self) -> Token<'source> {
+        // TODO: handle escaping
+        let mut count = 0;
+        while self.match_pred_advance(|c| c != '\'') {
+            count += 1;
+        }
+
+        if self.is_at_end() {
+            self.error_token("Unterminated character")
+        } else {
+            self.advance();
+
+            if count > 1 {
+                self.error_token("Character literal may only contain one character")
+            } else {
+                self.make_token(TokenKind::Char)
+            }
         }
     }
 
