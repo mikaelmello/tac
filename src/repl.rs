@@ -4,7 +4,7 @@ use std::io;
 
 use crate::vm::VirtualMachine;
 
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn repl() -> io::Result<()> {
     // `()` can be used when no completer is required

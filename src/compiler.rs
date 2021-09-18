@@ -134,20 +134,63 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::If | TokenKind::IfFalse => self.if_statement(),
             TokenKind::Goto => self.goto_statement(),
             TokenKind::Halt => self.emit_instruction(Instruction::Halt),
+            TokenKind::Star => self.assignment(),
+            TokenKind::Identifier => self.label_or_assignment(),
 
-            TokenKind::NewLine => return,
+            TokenKind::NewLine | TokenKind::Eof => return,
             TokenKind::Equal => self.error("Assignments must have a variable on the left side"),
             TokenKind::Scan => self.error("Return value of scan must be assigned to a variable"),
-            _ => self.error("Invalid statement"),
+            k => self.error(&format!("Invalid statement with token {:?}", k)),
         }
 
         match self.current.kind {
-            TokenKind::NewLine | TokenKind::Eof => return,
+            TokenKind::NewLine | TokenKind::Eof => {}
             _ => self.error_at_current("There must be at most one statement per line"),
         }
     }
 
-    fn r#return(&mut self) {}
+    fn label_or_assignment(&mut self) {
+        let identifier = self.previous;
+
+        if self.match_advance(TokenKind::Colon) {
+            if self.labels.get(identifier.lexeme).is_some() {
+                self.error_at(identifier, "Redefinition of labels is not allowed");
+            } else {
+                self.labels.insert(identifier.lexeme, self.chunk.code.len());
+            }
+
+            self.statement();
+        } else {
+            self.assignment();
+        }
+    }
+
+    fn assignment(&mut self) {
+        let dereference = self.previous.kind == TokenKind::Star;
+
+        if self.previous.kind == TokenKind::Star {
+            self.consume(
+                TokenKind::Identifier,
+                "A variable is required to be dereferenced",
+            );
+        }
+
+        let identifier = self.previous;
+
+        if self.match_advance(TokenKind::LeftBracket) {
+            if dereference {
+                return self.error("Dereferenced variables can not be accessed via array indexes in the same statement");
+            }
+
+            self.array_subscript();
+            self.consume(
+                TokenKind::RightBracket,
+                "Missing ']': Array accesses must be enclosed by brackets",
+            );
+        }
+    }
+
+    fn array_subscript(&mut self) {}
 
     fn if_statement(&mut self) {
         let negate = self.previous.kind == TokenKind::IfFalse;
@@ -173,7 +216,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
             self.emit_instruction(Instruction::Not);
         }
 
-        let pending = self.pending_labels.entry(label).or_insert_with(|| vec![]);
+        let pending = self.pending_labels.entry(label).or_insert_with(Vec::new);
         pending.push((self.chunk.code.len(), self.previous.line));
 
         self.emit_instruction(Instruction::JumpIf(0));
@@ -184,7 +227,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
 
         let label = self.previous.lexeme;
 
-        let pending = self.pending_labels.entry(label).or_insert_with(|| vec![]);
+        let pending = self.pending_labels.entry(label).or_insert_with(Vec::new);
         pending.push((self.chunk.code.len(), self.previous.line));
 
         self.emit_instruction(Instruction::Goto(0));
@@ -336,7 +379,6 @@ impl<'source, 'c> Compiler<'source, 'c> {
             },
             Err(msg) => {
                 self.error(&msg);
-                return;
             }
         };
     }
@@ -395,6 +437,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::BoolKW => (None, None, Precedence::None),
             TokenKind::Error => (None, None, Precedence::None),
             TokenKind::Eof => (None, None, Precedence::None),
+            TokenKind::Colon => (None, None, Precedence::None),
         };
 
         CompilerRule::from(rule)
@@ -421,12 +464,12 @@ impl<'source, 'c> Compiler<'source, 'c> {
             }
         }
 
-        // for (label, first_use) in missing_labels {
-        //     self.error(&format!(
-        //         "Missing label '{}', first used in line {}",
-        //         label, first_use
-        //     ));
-        // }
+        for (label, first_use) in missing_labels {
+            self.error(&format!(
+                "Missing label '{}', first used in line {}",
+                label, first_use
+            ));
+        }
 
         for (idx, val) in patches {
             self.patch_jump(idx, val as u16)
@@ -482,7 +525,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
             return true;
         }
 
-        return false;
+        false
     }
 
     fn check(&mut self, kind: TokenKind) -> bool {

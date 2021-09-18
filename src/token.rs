@@ -10,6 +10,7 @@ pub enum TokenKind {
     LeftBracket,
     RightBracket,
     Comma,
+    Colon,
     Dot,
     Minus,
     Plus,

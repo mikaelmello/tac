@@ -25,7 +25,7 @@ macro_rules! binary_op {
         let res = a $oper b;
         match res {
             Ok(val) => $self.stack.push(val),
-            Err(msg) => Err($self.report_rte(msg))?,
+            Err(msg) => return Err($self.report_rte(msg)),
         };
     }};
 }
@@ -43,7 +43,7 @@ macro_rules! binary_op_f {
         let res = Value::$oper(a, b);
         match res {
             Ok(val) => $self.stack.push(val),
-            Err(msg) => Err($self.report_rte(msg))?,
+            Err(msg) => return Err($self.report_rte(msg)),
         };
     }};
 }
@@ -64,7 +64,7 @@ impl VirtualMachine {
 
         Compiler::compile(source, &mut chunk)?;
 
-        self.current_chunk.insert(chunk);
+        self.current_chunk = Some(chunk);
 
         self.run()
     }
@@ -72,7 +72,7 @@ impl VirtualMachine {
     fn current_chunk(&self) -> TACResult<&Chunk> {
         match self.current_chunk.as_ref() {
             Some(c) => Ok(c),
-            None => return Err(self.report_rte("No chunk to run code from".into())),
+            None => Err(self.report_rte("No chunk to run code from".into())),
         }
     }
 
@@ -120,7 +120,7 @@ impl VirtualMachine {
     }
 
     fn r#return(&mut self) -> TACResult<()> {
-        return Ok(());
+        Ok(())
     }
 
     fn print(&mut self, nl: bool) -> TACResult<()> {
@@ -135,7 +135,7 @@ impl VirtualMachine {
         };
 
         print!("{}{}", value, suffix);
-        return Ok(());
+        Ok(())
     }
 
     fn pop(&mut self) -> TACResult<()> {
@@ -152,7 +152,10 @@ impl VirtualMachine {
             .ok_or_else(|| self.report_rte("No value in the stack to check condition".into()))?;
 
         match value {
-            Value::Bool(true) => Ok(self.ip = ip as usize),
+            Value::Bool(true) => {
+                self.ip = ip as usize;
+                Ok(())
+            }
             Value::Bool(false) => Ok(()),
             v => Err(self.report_rte(format!(
                 "Invalid type '{}' for condition, 'bool' required.",
@@ -165,9 +168,10 @@ impl VirtualMachine {
         match self.stack.last_mut().map(Value::arithmetic_negate) {
             Some(Ok(_)) => Ok(()),
             Some(Err(msg)) => Err(self.report_rte(msg)),
-            None => Err(self.report_rte(format!(
+            None => Err(self.report_rte(
                 "Can not apply unary operator '-' because there is not a value in the stack"
-            ))),
+                    .to_string(),
+            )),
         }
     }
 
@@ -175,9 +179,10 @@ impl VirtualMachine {
         match self.stack.last_mut().map(Value::logic_negate) {
             Some(Ok(_)) => Ok(()),
             Some(Err(msg)) => Err(self.report_rte(msg)),
-            None => Err(self.report_rte(format!(
+            None => Err(self.report_rte(
                 "Can not apply unary operator '-' because there is not a value in the stack"
-            ))),
+                    .to_string(),
+            )),
         }
     }
 

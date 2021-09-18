@@ -10,22 +10,33 @@ pub enum Value {
     I64(i64),
     Bool(bool),
     Char(char),
+    Addr(usize),
 }
 
 impl Value {
     pub fn arithmetic_negate(&mut self) -> Result<(), String> {
         match self {
-            Value::F64(val) => Ok(*val = -(*val)),
+            Value::F64(val) => {
+                *val = -(*val);
+                Ok(())
+            }
             Value::U64(_) => Err("It is not possible to negate a number of type u64".into()),
-            Value::I64(val) => Ok(*val = -(*val)),
+            Value::I64(val) => {
+                *val = -(*val);
+                Ok(())
+            }
             Value::Bool(_) => Err("It is not possible to arithmetically negate a boolean".into()),
             Value::Char(_) => Err("It is not possible to negate a character".into()),
+            Value::Addr(_) => Err("It is not possible to negate an address".into()),
         }
     }
 
     pub fn logic_negate(&mut self) -> Result<(), String> {
         match self {
-            Value::Bool(val) => Ok(*val = !(*val)),
+            Value::Bool(val) => {
+                *val = !(*val);
+                Ok(())
+            }
             val => Err(format!(
                 "Operator '!' not supported for value of type {}",
                 val.type_info()
@@ -83,6 +94,7 @@ impl Value {
             Value::I64(_) => "i64",
             Value::Bool(_) => "bool",
             Value::Char(_) => "char",
+            Value::Addr(_) => "addr",
         }
     }
 }
@@ -95,6 +107,7 @@ impl Display for Value {
             Value::I64(val) => write!(f, "{}", val),
             Value::Bool(val) => write!(f, "{}", val),
             Value::Char(val) => write!(f, "{}", val),
+            Value::Addr(val) => write!(f, "addr({})", val),
         }
     }
 }
