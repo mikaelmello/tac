@@ -81,6 +81,22 @@ impl<'source, 'c> Compiler<'source, 'c> {
 
         match self.current.kind {
             TokenKind::NewLine | TokenKind::Eof => {}
+            TokenKind::BangEqual
+            | TokenKind::EqualEqual
+            | TokenKind::Greater
+            | TokenKind::GreaterEqual
+            | TokenKind::Less
+            | TokenKind::LessEqual
+            | TokenKind::Minus
+            | TokenKind::Plus
+            | TokenKind::Star
+            | TokenKind::Slash
+            | TokenKind::Percent
+            | TokenKind::ShiftLeft
+            | TokenKind::ShiftRight
+            | TokenKind::Bang
+            | TokenKind::Ampersand => self
+                .error_at_current("Three-address code programs support at most binary expressions"),
             _ => self.error_at_current("There must be at most one statement per line"),
         }
     }
@@ -94,8 +110,6 @@ impl<'source, 'c> Compiler<'source, 'c> {
             } else {
                 self.labels.insert(identifier.lexeme, self.chunk.code.len());
             }
-
-            self.statement();
         } else {
             self.assignment();
         }
@@ -136,7 +150,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
             _ => panic!("Invalid token in if_statement()"),
         };
 
-        self.operand();
+        self.expression();
 
         self.consume(
             TokenKind::Goto,
@@ -173,8 +187,72 @@ impl<'source, 'c> Compiler<'source, 'c> {
     fn print_statement(&mut self) {
         let nl = self.previous.kind == TokenKind::PrintLn;
 
-        self.operand();
+        self.expression();
         self.emit_instruction(Instruction::Print(nl))
+    }
+
+    fn expression(&mut self) {
+        if self.unary_expression().is_some() {
+            return;
+        }
+
+        if self.current.kind == TokenKind::Call {
+            self.advance();
+            self.operand();
+            self.operand();
+            todo!("self.emit_instruction(Instruction::Call); return;");
+        }
+
+        if self.current.kind == TokenKind::Scan {
+            self.advance();
+            todo!("Scan expression");
+        }
+
+        self.operand();
+
+        macro_rules! simple_bin_op {
+            ($is:expr) => {{
+                self.advance();
+                self.operand();
+                self.emit_instructions($is);
+            }};
+        }
+
+        match self.current.kind {
+            TokenKind::BangEqual => simple_bin_op!(&[Instruction::Equal, Instruction::Not]),
+            TokenKind::EqualEqual => simple_bin_op!(&[Instruction::Equal]),
+            TokenKind::Greater => simple_bin_op!(&[Instruction::Greater]),
+            TokenKind::GreaterEqual => simple_bin_op!(&[Instruction::Less, Instruction::Less]),
+            TokenKind::Less => simple_bin_op!(&[Instruction::Less]),
+            TokenKind::LessEqual => simple_bin_op!(&[Instruction::Less, Instruction::Greater]),
+            TokenKind::Minus => simple_bin_op!(&[Instruction::Subtract]),
+            TokenKind::Plus => simple_bin_op!(&[Instruction::Add]),
+            TokenKind::Star => simple_bin_op!(&[Instruction::Multiply]),
+            TokenKind::Slash => simple_bin_op!(&[Instruction::Divide]),
+            TokenKind::Percent => todo!("&[Instruction::Modulo]"),
+            TokenKind::ShiftLeft => todo!("simple_bin_op!(&[Instruction::Shl])"),
+            TokenKind::ShiftRight => todo!("simple_bin_op!(&[Instruction::Shr])"),
+            _ => {}
+        };
+    }
+
+    fn unary_expression(&mut self) -> Option<()> {
+        let unary_op = match self.current.kind {
+            TokenKind::Bang => Some(Instruction::Not),
+            TokenKind::Minus => Some(Instruction::Negate),
+            TokenKind::Star => todo!("Some(Instruction::Dereference"),
+            TokenKind::Ampersand => todo!("Some(Instruction::Reference"),
+            _ => None,
+        };
+
+        if let Some(instruction) = unary_op {
+            self.advance();
+            self.operand();
+            self.emit_instruction(instruction);
+            Some(())
+        } else {
+            None
+        }
     }
 
     fn operand(&mut self) {

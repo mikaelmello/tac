@@ -58,6 +58,7 @@ impl<'source> Scanner<'source> {
             '*' => self.make_token(TokenKind::Star),
             '%' => self.make_token(TokenKind::Percent),
             ':' => self.make_token(TokenKind::Colon),
+            '&' => self.make_token(TokenKind::Ampersand),
 
             '!' if self.match_advance('=') => self.make_token(TokenKind::BangEqual),
             '!' => self.make_token(TokenKind::Bang),

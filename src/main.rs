@@ -10,6 +10,7 @@ mod opts;
 mod repl;
 mod scanner;
 mod token;
+mod utils;
 mod value;
 mod vm;
 
