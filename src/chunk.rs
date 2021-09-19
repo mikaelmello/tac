@@ -1,5 +1,8 @@
 use crate::value::Value;
-use std::convert::TryFrom;
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryFrom,
+};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Instruction {
@@ -15,6 +18,9 @@ pub enum Instruction {
     Equal,
     Greater,
     Less,
+    GetVar(u16),
+    GetOrCreateVar(u16),
+    Assign,
     JumpIf(u16),
     Goto(u16),
     Pop,
@@ -35,19 +41,18 @@ impl LineStart {
     }
 }
 
+#[derive(Default)]
 pub struct Chunk {
     pub code: Vec<Instruction>,
     constants: Vec<Value>,
+    names: Vec<String>,
+    names_rev: HashMap<String, u16>,
     lines: Vec<LineStart>,
 }
 
 impl Chunk {
     pub fn new() -> Self {
-        Self {
-            code: vec![],
-            constants: vec![],
-            lines: vec![],
-        }
+        Self::default()
     }
 
     pub fn write(&mut self, i: Instruction, line: usize) -> usize {
@@ -88,6 +93,28 @@ impl Chunk {
             .get(idx)
             .copied()
             .expect("Could not get constant")
+    }
+
+    pub fn add_name(&mut self, name: &str) -> Result<u16, &'static str> {
+        if let Some(addr) = self.names_rev.get(name) {
+            return Ok(*addr);
+        }
+
+        let index = self.names.len();
+
+        match u16::try_from(index) {
+            Ok(index) => {
+                self.names.push(name.to_string());
+                self.names_rev.insert(name.to_string(), index);
+                Ok(index)
+            }
+            Err(_) => Err("Could not add name, reached limit of u16 max size"),
+        }
+    }
+
+    pub fn get_name(&self, addr: u16) -> &str {
+        let idx = usize::from(addr);
+        self.names.get(idx).expect("Could not get name")
     }
 
     pub fn get_line(&self, instruction_idx: usize) -> usize {

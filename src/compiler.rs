@@ -125,7 +125,10 @@ impl<'source, 'c> Compiler<'source, 'c> {
             );
         }
 
-        let identifier = self.previous;
+        let identifier = match self.chunk.add_name(self.previous.lexeme) {
+            Ok(addr) => addr,
+            Err(_) => return self.error("The program uses too many variables (65535+)"),
+        };
 
         if self.match_advance(TokenKind::LeftBracket) {
             if dereference {
@@ -138,6 +141,15 @@ impl<'source, 'c> Compiler<'source, 'c> {
                 "Missing ']': Array accesses must be enclosed by brackets",
             );
         }
+
+        self.consume(
+            TokenKind::Equal,
+            "Assignment statement expected, but no '=' was found",
+        );
+
+        self.emit_instruction(Instruction::GetOrCreateVar(identifier));
+        self.expression();
+        self.emit_instruction(Instruction::Assign);
     }
 
     fn array_subscript(&mut self) {}
@@ -259,7 +271,13 @@ impl<'source, 'c> Compiler<'source, 'c> {
         self.advance();
 
         match self.previous.kind {
-            TokenKind::Identifier => todo!("Implement variable handling for operand method"),
+            TokenKind::Identifier => {
+                let addr = match self.chunk.add_name(self.previous.lexeme) {
+                    Ok(addr) => addr,
+                    Err(_) => return self.error("The program uses too many variables (65535+)"),
+                };
+                self.emit_instruction(Instruction::GetVar(addr));
+            }
             TokenKind::True => self.emit_instruction(Instruction::True),
             TokenKind::False => self.emit_instruction(Instruction::False),
             TokenKind::Char => self.char(),

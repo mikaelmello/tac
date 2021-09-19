@@ -37,6 +37,8 @@ impl<'a> Disassembler<'a> {
             Instruction::Negate => eprintln!("NEGATE"),
             Instruction::Not => eprintln!("NOT"),
             Instruction::Constant(addr) => self.constant("CONSTANT", *addr),
+            Instruction::GetOrCreateVar(addr) => self.name("GET_OR_CREATE_VAR", *addr),
+            Instruction::GetVar(addr) => self.name("GET_VAR", *addr),
             Instruction::True => eprintln!("TRUE"),
             Instruction::False => eprintln!("FALSE"),
             Instruction::Equal => eprintln!("EQUAL"),
@@ -47,11 +49,17 @@ impl<'a> Disassembler<'a> {
             Instruction::Halt => eprintln!("HALT"),
             Instruction::Goto(ip) => eprintln!("JUMP {:04}", ip),
             Instruction::JumpIf(ip) => eprintln!("JUMP {:04}", ip),
+            Instruction::Assign => eprintln!("ASSIGN"),
         }
     }
 
     fn constant(&self, name: &str, addr: u16) {
         let value = self.chunk.get_constant(addr);
+        eprintln!("{:16} {:4} '{}'", name, addr, value);
+    }
+
+    fn name(&self, name: &str, addr: u16) {
+        let value = self.chunk.get_name(addr);
         eprintln!("{:16} {:4} '{}'", name, addr, value);
     }
 }
