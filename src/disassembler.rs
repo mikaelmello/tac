@@ -40,7 +40,7 @@ impl<'a> Disassembler<'a> {
             Instruction::ShiftRight => eprintln!("SHIFT_RIGHT"),
             Instruction::Not => eprintln!("NOT"),
             Instruction::Constant(addr) => self.constant("CONSTANT", *addr),
-            Instruction::GetOrCreateVar(addr) => self.name("GET_OR_CREATE_VAR", *addr),
+            Instruction::GetOrCreateVar(addr) => self.name("GET_OR_CREATE_VA", *addr),
             Instruction::GetVar(addr) => self.name("GET_VAR", *addr),
             Instruction::True => eprintln!("TRUE"),
             Instruction::False => eprintln!("FALSE"),
@@ -53,6 +53,7 @@ impl<'a> Disassembler<'a> {
             Instruction::Goto(ip) => eprintln!("JUMP {:04}", ip),
             Instruction::JumpIf(ip) => eprintln!("JUMP {:04}", ip),
             Instruction::Assign => eprintln!("ASSIGN"),
+            Instruction::Call(ip) => eprintln!("CALL {:04}", ip),
         }
     }
 

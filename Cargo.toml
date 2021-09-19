@@ -12,4 +12,5 @@ debug_print_code = []
 
 [dependencies]
 clap = "3.0.0-beta.4"
+lazy_static = "1.4.0"
 rustyline = "9.0.0"

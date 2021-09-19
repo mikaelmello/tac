@@ -1,4 +1,7 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    convert::TryInto,
+};
 
 use crate::{
     chunk::{Chunk, Instruction},
@@ -13,6 +16,7 @@ type SymbolTable = HashMap<u16, usize>;
 pub struct Frame {
     stack: Vec<Value>,
     st: SymbolTable,
+    ra: Option<usize>,
 }
 
 pub struct VirtualMachine {
@@ -113,17 +117,23 @@ impl VirtualMachine {
                 }
             };
 
-            #[cfg(feature = "debug_trace_execution")]
             {
-                let dis = crate::disassembler::Disassembler::new(&self.chunk);
-                dis.instruction(self.ip, &instruction);
+                let trace_execution = crate::TRACE_EXECUTION.read().unwrap();
+                if *trace_execution {
+                    let dis = crate::disassembler::Disassembler::new(&self.chunk);
+                    dis.instruction(self.ip, &instruction);
+                }
             }
 
             self.ip += 1;
 
             match instruction {
                 Instruction::Halt => return Ok(()),
-                Instruction::Return => return self.r#return(),
+                Instruction::Return => {
+                    if self.r#return() {
+                        return Ok(());
+                    }
+                }
                 Instruction::Negate => self.negate()?,
                 Instruction::Not => self.not()?,
                 Instruction::Constant(addr) => self.constant(addr)?,
@@ -146,11 +156,86 @@ impl VirtualMachine {
                 Instruction::Goto(ip) => self.ip = ip as usize,
                 Instruction::JumpIf(ip) => self.jump_if(ip)?,
                 Instruction::Assign => self.assign()?,
+                Instruction::Call(ip) => self.call(ip)?,
             }
         }
     }
 
-    fn r#return(&mut self) -> TACResult<()> {
+    fn r#return(&mut self) -> bool {
+        let ra = self.get_current_frame().ra;
+
+        if let Some(ip) = ra {
+            self.frames.pop();
+            self.ip = ip;
+            false
+        } else {
+            self.frames.pop();
+            true
+        }
+    }
+
+    fn call(&mut self, ip: u16) -> TACResult<()> {
+        let param_count = self.get_current_stack_mut().pop().ok_or_else(|| {
+            self.report_rte(
+                "No value in the stack to define how many parameters to call function".into(),
+            )
+        })?;
+
+        let mut parameters = vec![];
+
+        if let Value::U64(count) = param_count {
+            for i in 0..count {
+                parameters.push(self.get_current_stack_mut().pop().ok_or_else(|| {
+                    self.report_rte(format!(
+                        "Method called with {} parameters but {} were found in the stack",
+                        count, i
+                    ))
+                })?);
+            }
+        } else {
+            return Err(self.report_rte(format!(
+                "Parameter count must be defined by a variable of type u64 but found type {}",
+                param_count.type_info()
+            )));
+        }
+
+        // get string id of "args" name
+        let args_chunk_addr = self
+            .chunk
+            .add_name("args")
+            .map_err(|_| self.report_rte("The program uses too many variables (65535+)".into()))?;
+        // get string id of "argc" name
+        let argc_chunk_addr = self
+            .chunk
+            .add_name("argc")
+            .map_err(|_| self.report_rte("The program uses too many variables (65535+)".into()))?;
+
+        // push new empty frame
+        let frame = Frame {
+            ra: Some(self.ip),
+            ..Default::default()
+        };
+        self.frames.push(frame);
+
+        // insert "argc" variable in symbol table, address 0: beginning of the stack
+        self.get_current_st_mut().insert(argc_chunk_addr, 0);
+
+        // push argc to stack
+        self.get_current_stack_mut()
+            .push(Value::U64(parameters.len().try_into().unwrap()));
+
+        if !parameters.is_empty() {
+            // insert "args" variable in symbol table, address 1: just after beginning of the stack
+            self.get_current_st_mut().insert(args_chunk_addr, 1);
+
+            // push args to stack
+            for p in parameters {
+                self.get_current_stack_mut().push(p);
+            }
+        }
+
+        self.ip = ip as usize;
+
         Ok(())
     }
 

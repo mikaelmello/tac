@@ -69,6 +69,8 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::If | TokenKind::IfFalse => self.if_statement(),
             TokenKind::Goto => self.goto_statement(),
             TokenKind::Halt => self.emit_instruction(Instruction::Halt),
+            TokenKind::Call => self.call_statement(),
+            TokenKind::Return => self.emit_instruction(Instruction::Return),
             TokenKind::Star => self.assignment(),
             TokenKind::Identifier => self.label_or_assignment(),
 
@@ -202,6 +204,22 @@ impl<'source, 'c> Compiler<'source, 'c> {
         self.emit_instruction(Instruction::Print(nl))
     }
 
+    fn call_statement(&mut self) {
+        self.consume(TokenKind::Identifier, "Missing label to call function");
+        let label = self.previous.lexeme;
+
+        if self.match_advance(TokenKind::Comma) {
+            self.operand();
+        } else {
+            self.make_constant(Value::U64(0));
+        }
+
+        let pending = self.pending_labels.entry(label).or_insert_with(Vec::new);
+        pending.push((self.chunk.code.len(), self.previous.line));
+
+        self.emit_instruction(Instruction::Call(0));
+    }
+
     fn expression(&mut self) {
         if self.unary_expression().is_some() {
             return;
@@ -209,9 +227,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
 
         if self.current.kind == TokenKind::Call {
             self.advance();
-            self.operand();
-            self.operand();
-            todo!("self.emit_instruction(Instruction::Call); return;");
+            return self.call_statement();
         }
 
         if self.current.kind == TokenKind::Scan {
@@ -409,6 +425,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
             Some(i) => match i {
                 Instruction::Goto(idx) => *idx = val,
                 Instruction::JumpIf(idx) => *idx = val,
+                Instruction::Call(idx) => *idx = val,
                 _ => panic!("Patching jump led to invalid instruction"),
             },
             None => panic!("Patching jump led to invalid index"),

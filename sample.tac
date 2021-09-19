@@ -1,10 +1,10 @@
-counter = 1u64
+counter = 0
 start:
-if counter > 0u64 goto print_expression
+if counter < 5 goto print_expression
 halt
 
 print_expression:
-counter = counter << 1
+counter = counter + 1
 print 2
 print '+'
 print 3
@@ -12,6 +12,12 @@ print 4
 print '='
 print 12u64+34u64
 print ' '
+call fun
+print ' '
 print ':'
 println ')'
 goto start
+
+fun:
+print 1337
+return

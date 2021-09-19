@@ -12,6 +12,7 @@ pub enum Instruction {
     ShiftLeft,
     ShiftRight,
     Negate,
+    Call(u16),
     True,
     False,
     Not,
