@@ -3,7 +3,6 @@ use std::collections::{hash_map::Entry, HashMap};
 use crate::{
     chunk::{Chunk, Instruction},
     compiler::Compiler,
-    disassembler::Disassembler,
     error::{TACError, TACResult},
     value::Value,
 };
@@ -116,7 +115,7 @@ impl VirtualMachine {
 
             #[cfg(feature = "debug_trace_execution")]
             {
-                let dis = Disassembler::new(&self.chunk);
+                let dis = crate::disassembler::Disassembler::new(&self.chunk);
                 dis.instruction(self.ip, &instruction);
             }
 

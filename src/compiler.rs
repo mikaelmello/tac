@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::{
     chunk::{Chunk, Instruction},
-    disassembler::Disassembler,
     error::{error_at, TACError, TACResult},
     scanner::Scanner,
     token::{Token, TokenKind},
@@ -425,7 +424,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
 
         #[cfg(feature = "debug_print_code")]
         if self.had_error {
-            let disassembler = Disassembler::new(self.chunk);
+            let disassembler = crate::disassembler::Disassembler::new(self.chunk);
             disassembler.disassemble("Code");
         }
     }

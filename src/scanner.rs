@@ -202,10 +202,6 @@ impl<'source> Scanner<'source> {
         self.source_chars.get(self.current).map(|sc| sc.c)
     }
 
-    fn peek_next(&self) -> Option<char> {
-        self.source_chars.get(self.current + 1).map(|sc| sc.c)
-    }
-
     fn is_at_end(&self) -> bool {
         self.current == self.source_chars.len()
     }

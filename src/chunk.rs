@@ -1,8 +1,5 @@
 use crate::value::Value;
-use std::{
-    collections::{HashMap, HashSet},
-    convert::TryFrom,
-};
+use std::{collections::HashMap, convert::TryFrom};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Instruction {
