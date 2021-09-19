@@ -1,6 +1,7 @@
 use std::{
+    convert::TryInto,
     fmt::{Display, Formatter},
-    ops,
+    ops::{self, Shl, Shr},
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -87,6 +88,14 @@ impl Value {
         }
     }
 
+    pub fn is_numeric_zero(&self) -> bool {
+        match *self {
+            Value::F64(v) if v == 0.0 || v == -0.0 => true,
+            Value::I64(0) | Value::U64(0) => true,
+            _ => false,
+        }
+    }
+
     pub fn type_info(&self) -> &'static str {
         match self {
             Value::F64(_) => "f64",
@@ -115,12 +124,12 @@ impl Display for Value {
 impl ops::Add<Value> for Value {
     type Output = Result<Value, String>;
 
-    fn add(self, _rhs: Value) -> Result<Value, String> {
-        match (self, _rhs) {
-            // TODO: handle overflows that would normally panic
+    fn add(self, rhs: Value) -> Result<Value, String> {
+        match (self, rhs) {
+            // TODO: handle warnings/errors in regard to overflow
             (Value::F64(a), Value::F64(b)) => Ok(Value::F64(a + b)),
-            (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a + b)),
-            (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a + b)),
+            (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a.wrapping_add(b))),
+            (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a.wrapping_add(b))),
             (a, b) => Err(format!(
                 "Operator '+' not supported between values of type '{}' and '{}'",
                 a.type_info(),
@@ -133,12 +142,12 @@ impl ops::Add<Value> for Value {
 impl ops::Sub<Value> for Value {
     type Output = Result<Value, String>;
 
-    fn sub(self, _rhs: Value) -> Result<Value, String> {
-        match (self, _rhs) {
-            // TODO: handle overflows that would normally panic
+    fn sub(self, rhs: Value) -> Result<Value, String> {
+        match (self, rhs) {
+            // TODO: handle warnings/errors in regard to overflow
             (Value::F64(a), Value::F64(b)) => Ok(Value::F64(a - b)),
-            (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a - b)),
-            (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a - b)),
+            (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a.wrapping_sub(b))),
+            (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a.wrapping_sub(b))),
             (a, b) => Err(format!(
                 "Operator '-' not supported between values of type '{}' and '{}'",
                 a.type_info(),
@@ -151,12 +160,12 @@ impl ops::Sub<Value> for Value {
 impl ops::Mul<Value> for Value {
     type Output = Result<Value, String>;
 
-    fn mul(self, _rhs: Value) -> Result<Value, String> {
-        match (self, _rhs) {
-            // TODO: handle overflows that would normally panic
+    fn mul(self, rhs: Value) -> Result<Value, String> {
+        match (self, rhs) {
+            // TODO: handle warnings/errors in regard to overflow
             (Value::F64(a), Value::F64(b)) => Ok(Value::F64(a * b)),
-            (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a * b)),
-            (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a * b)),
+            (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a.wrapping_mul(b))),
+            (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a.wrapping_mul(b))),
             (a, b) => Err(format!(
                 "Operator '*' not supported between values of type '{}' and '{}'",
                 a.type_info(),
@@ -169,9 +178,12 @@ impl ops::Mul<Value> for Value {
 impl ops::Div<Value> for Value {
     type Output = Result<Value, String>;
 
-    fn div(self, _rhs: Value) -> Result<Value, String> {
-        match (self, _rhs) {
-            // TODO: handle overflows that would normally panic
+    fn div(self, rhs: Value) -> Result<Value, String> {
+        match (self, rhs) {
+            // TODO: handle warnings/errors in regard to overflow
+            (Value::F64(_) | Value::I64(_) | Value::U64(_), b) if b.is_numeric_zero() => {
+                Err("Division by 0".to_string())
+            }
             (Value::F64(a), Value::F64(b)) => Ok(Value::F64(a / b)),
             (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a / b)),
             (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a / b)),
@@ -187,13 +199,84 @@ impl ops::Div<Value> for Value {
 impl ops::Rem<Value> for Value {
     type Output = Result<Value, String>;
 
-    fn rem(self, _rhs: Value) -> Result<Value, String> {
-        match (self, _rhs) {
+    fn rem(self, rhs: Value) -> Result<Value, String> {
+        match (self, rhs) {
+            (Value::F64(_) | Value::I64(_) | Value::U64(_), b) if b.is_numeric_zero() => {
+                Err("Division by 0".to_string())
+            }
             (Value::F64(a), Value::F64(b)) => Ok(Value::F64(a % b)),
             (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a % b)),
             (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a % b)),
             (a, b) => Err(format!(
                 "Operator '%' not supported between values of type '{}' and '{}'",
+                a.type_info(),
+                b.type_info()
+            )),
+        }
+    }
+}
+
+impl ops::Shl<Value> for Value {
+    type Output = Result<Value, String>;
+
+    fn shl(self, rhs: Value) -> Self::Output {
+        match (self, rhs) {
+            (Value::U64(a), Value::U64(b)) => {
+                let b = b.try_into().unwrap_or(u32::MAX);
+                Ok(Value::U64(a.wrapping_shl(b)))
+            }
+            (Value::U64(a), Value::I64(b)) => {
+                if b < 0 {
+                    return Value::U64(a).shr(Value::I64(-b));
+                }
+                let b = b.try_into().unwrap_or(u32::MAX);
+
+                Ok(Value::U64(a.wrapping_shl(b)))
+            }
+            (Value::I64(a), Value::I64(b)) => {
+                if b < 0 {
+                    return Value::I64(a).shr(Value::I64(-b));
+                }
+                let b = b.try_into().unwrap_or(u32::MAX);
+
+                Ok(Value::I64(a.wrapping_shl(b)))
+            }
+            (a, b) => Err(format!(
+                "Operator '<<' not supported between values of type '{}' and '{}'",
+                a.type_info(),
+                b.type_info()
+            )),
+        }
+    }
+}
+
+impl ops::Shr<Value> for Value {
+    type Output = Result<Value, String>;
+
+    fn shr(self, rhs: Value) -> Self::Output {
+        match (self, rhs) {
+            (Value::U64(a), Value::U64(b)) => {
+                let b = b.try_into().unwrap_or(u32::MAX);
+                Ok(Value::U64(a.wrapping_shr(b)))
+            }
+            (Value::U64(a), Value::I64(b)) => {
+                if b < 0 {
+                    return Value::U64(a).shl(Value::I64(-b));
+                }
+                let b = b.try_into().unwrap_or(u32::MAX);
+
+                Ok(Value::U64(a.wrapping_shr(b)))
+            }
+            (Value::I64(a), Value::I64(b)) => {
+                if b < 0 {
+                    return Value::I64(a).shl(Value::I64(-b));
+                }
+                let b = b.try_into().unwrap_or(u32::MAX);
+
+                Ok(Value::I64(a.wrapping_shr(b)))
+            }
+            (a, b) => Err(format!(
+                "Operator '<<' not supported between values of type '{}' and '{}'",
                 a.type_info(),
                 b.type_info()
             )),

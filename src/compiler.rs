@@ -240,9 +240,9 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::Plus => simple_bin_op!(&[Instruction::Add]),
             TokenKind::Star => simple_bin_op!(&[Instruction::Multiply]),
             TokenKind::Slash => simple_bin_op!(&[Instruction::Divide]),
-            TokenKind::Percent => todo!("&[Instruction::Modulo]"),
-            TokenKind::ShiftLeft => todo!("simple_bin_op!(&[Instruction::Shl])"),
-            TokenKind::ShiftRight => todo!("simple_bin_op!(&[Instruction::Shr])"),
+            TokenKind::Percent => simple_bin_op!(&[Instruction::Modulo]),
+            TokenKind::ShiftLeft => simple_bin_op!(&[Instruction::ShiftLeft]),
+            TokenKind::ShiftRight => simple_bin_op!(&[Instruction::ShiftRight]),
             _ => {}
         };
     }
