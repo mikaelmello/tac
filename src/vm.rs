@@ -14,30 +14,31 @@ type SymbolTable = HashMap<u16, usize>;
 
 #[derive(Default, Debug)]
 pub struct Frame {
-    stack: Vec<Value>,
     st: SymbolTable,
     ra: Option<usize>,
+    rsp: usize,
 }
 
 pub struct VirtualMachine {
     chunk: Chunk,
     frames: Vec<Frame>,
+    stack: Vec<Value>,
     ip: usize,
 }
 
 macro_rules! binary_op {
     ($self:expr,$oper:tt) => {{
-        let b = match $self.get_current_stack_mut().pop() {
+        let b = match $self.stack.pop() {
             Some(val) => val,
             None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
         };
-        let a = match $self.get_current_stack_mut().pop() {
+        let a = match $self.stack.pop() {
             Some(val) => val,
             None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
         };
         let res = a $oper b;
         match res {
-            Ok(val) => $self.get_current_stack_mut().push(val),
+            Ok(val) => $self.stack.push(val),
             Err(msg) => return Err($self.report_rte(msg)),
         };
     }};
@@ -45,17 +46,17 @@ macro_rules! binary_op {
 
 macro_rules! binary_op_f {
     ($self:expr,$oper:ident) => {{
-        let b = match $self.get_current_stack_mut().pop() {
+        let b = match $self.stack.pop() {
             Some(val) => val,
             None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
         };
-        let a = match $self.get_current_stack_mut().pop() {
+        let a = match $self.stack.pop() {
             Some(val) => val,
             None => return Err($self.report_rte(format!("Can not apply operator '{}' because there are not enough values in the stack", stringify!($oper)))),
         };
         let res = Value::$oper(a, b);
         match res {
-            Ok(val) => $self.get_current_stack_mut().push(val),
+            Ok(val) => $self.stack.push(val),
             Err(msg) => return Err($self.report_rte(msg)),
         };
     }};
@@ -66,6 +67,7 @@ impl VirtualMachine {
         Self {
             chunk: Chunk::new(),
             frames: vec![],
+            stack: vec![],
             ip: 0,
         }
     }
@@ -87,14 +89,6 @@ impl VirtualMachine {
 
     fn get_current_frame_mut(&mut self) -> &mut Frame {
         self.frames.last_mut().unwrap()
-    }
-
-    fn get_current_stack(&self) -> &Vec<Value> {
-        &self.get_current_frame().stack
-    }
-
-    fn get_current_stack_mut(&mut self) -> &mut Vec<Value> {
-        &mut self.get_current_frame_mut().stack
     }
 
     fn get_current_st(&self) -> &SymbolTable {
@@ -139,8 +133,8 @@ impl VirtualMachine {
                 Instruction::Constant(addr) => self.constant(addr)?,
                 Instruction::GetVar(name_addr) => self.get_var(name_addr)?,
                 Instruction::GetOrCreateVar(name_addr) => self.get_or_create_var(name_addr),
-                Instruction::True => self.get_current_stack_mut().push(Value::Bool(true)),
-                Instruction::False => self.get_current_stack_mut().push(Value::Bool(false)),
+                Instruction::True => self.stack.push(Value::Bool(true)),
+                Instruction::False => self.stack.push(Value::Bool(false)),
                 Instruction::Add => binary_op!(self, +),
                 Instruction::Subtract => binary_op!(self, -),
                 Instruction::Multiply => binary_op!(self, *),
@@ -163,9 +157,11 @@ impl VirtualMachine {
 
     fn r#return(&mut self) -> bool {
         let ra = self.get_current_frame().ra;
+        let rsp = self.get_current_frame().rsp;
 
         if let Some(ip) = ra {
             self.frames.pop();
+            self.stack.truncate(rsp);
             self.ip = ip;
             false
         } else {
@@ -175,7 +171,7 @@ impl VirtualMachine {
     }
 
     fn call(&mut self, ip: u16) -> TACResult<()> {
-        let param_count = self.get_current_stack_mut().pop().ok_or_else(|| {
+        let param_count = self.stack.pop().ok_or_else(|| {
             self.report_rte(
                 "No value in the stack to define how many parameters to call function".into(),
             )
@@ -185,7 +181,7 @@ impl VirtualMachine {
 
         if let Value::U64(count) = param_count {
             for i in 0..count {
-                parameters.push(self.get_current_stack_mut().pop().ok_or_else(|| {
+                parameters.push(self.stack.pop().ok_or_else(|| {
                     self.report_rte(format!(
                         "Method called with {} parameters but {} were found in the stack",
                         count, i
@@ -200,12 +196,12 @@ impl VirtualMachine {
         }
 
         // get string id of "args" name
-        let args_chunk_addr = self
+        let args_name_addr = self
             .chunk
             .add_name("args")
             .map_err(|_| self.report_rte("The program uses too many variables (65535+)".into()))?;
         // get string id of "argc" name
-        let argc_chunk_addr = self
+        let argc_name_addr = self
             .chunk
             .add_name("argc")
             .map_err(|_| self.report_rte("The program uses too many variables (65535+)".into()))?;
@@ -213,24 +209,27 @@ impl VirtualMachine {
         // push new empty frame
         let frame = Frame {
             ra: Some(self.ip),
+            rsp: self.stack.len(),
             ..Default::default()
         };
         self.frames.push(frame);
 
         // insert "argc" variable in symbol table, address 0: beginning of the stack
-        self.get_current_st_mut().insert(argc_chunk_addr, 0);
+        let argc_addr = self.stack.len();
+        self.get_current_st_mut().insert(argc_name_addr, argc_addr);
 
         // push argc to stack
-        self.get_current_stack_mut()
+        self.stack
             .push(Value::U64(parameters.len().try_into().unwrap()));
 
         if !parameters.is_empty() {
             // insert "args" variable in symbol table, address 1: just after beginning of the stack
-            self.get_current_st_mut().insert(args_chunk_addr, 1);
+            let args_addr = self.stack.len();
+            self.get_current_st_mut().insert(args_name_addr, args_addr);
 
             // push args to stack
             for p in parameters {
-                self.get_current_stack_mut().push(p);
+                self.stack.push(p);
             }
         }
 
@@ -241,17 +240,17 @@ impl VirtualMachine {
 
     fn assign(&mut self) -> TACResult<()> {
         let value = self
-            .get_current_stack_mut()
+            .stack
             .pop()
             .ok_or_else(|| self.report_rte("No value in the stack to assign".into()))?;
 
         let addr = self
-            .get_current_stack_mut()
+            .stack
             .pop()
             .ok_or_else(|| self.report_rte("No address in the stack to assign to".into()))?;
 
         if let Value::Addr(addr) = addr {
-            let map = match self.get_current_stack_mut().get_mut(addr) {
+            let map = match self.stack.get_mut(addr) {
                 Some(val) => val,
                 None => {
                     return Err(
@@ -269,7 +268,7 @@ impl VirtualMachine {
 
     fn print(&mut self, nl: bool) -> TACResult<()> {
         let value = self
-            .get_current_stack_mut()
+            .stack
             .pop()
             .ok_or_else(|| self.report_rte("No value in the stack to print".into()))?;
 
@@ -283,7 +282,7 @@ impl VirtualMachine {
     }
 
     fn pop(&mut self) -> TACResult<()> {
-        match self.get_current_stack_mut().pop() {
+        match self.stack.pop() {
             Some(_) => Ok(()),
             None => Err(self.report_rte("No value in the stack to pop".into())),
         }
@@ -291,7 +290,7 @@ impl VirtualMachine {
 
     fn jump_if(&mut self, ip: u16) -> TACResult<()> {
         let value = self
-            .get_current_stack_mut()
+            .stack
             .pop()
             .ok_or_else(|| self.report_rte("No value in the stack to check condition".into()))?;
 
@@ -309,11 +308,7 @@ impl VirtualMachine {
     }
 
     fn negate(&mut self) -> TACResult<()> {
-        match self
-            .get_current_stack_mut()
-            .last_mut()
-            .map(Value::arithmetic_negate)
-        {
+        match self.stack.last_mut().map(Value::arithmetic_negate) {
             Some(Ok(_)) => Ok(()),
             Some(Err(msg)) => Err(self.report_rte(msg)),
             None => Err(self.report_rte(
@@ -324,11 +319,7 @@ impl VirtualMachine {
     }
 
     fn not(&mut self) -> TACResult<()> {
-        match self
-            .get_current_stack_mut()
-            .last_mut()
-            .map(Value::logic_negate)
-        {
+        match self.stack.last_mut().map(Value::logic_negate) {
             Some(Ok(_)) => Ok(()),
             Some(Err(msg)) => Err(self.report_rte(msg)),
             None => Err(self.report_rte(
@@ -340,7 +331,7 @@ impl VirtualMachine {
 
     fn constant(&mut self, addr: u16) -> TACResult<()> {
         let value = self.read_constant(addr)?;
-        self.get_current_stack_mut().push(value);
+        self.stack.push(value);
         Ok(())
     }
 
@@ -355,8 +346,8 @@ impl VirtualMachine {
             }
         };
 
-        if let Some(value) = self.get_current_stack().get(addr).copied() {
-            self.get_current_stack_mut().push(value);
+        if let Some(value) = self.stack.get(addr).copied() {
+            self.stack.push(value);
 
             Ok(())
         } else {
@@ -368,17 +359,17 @@ impl VirtualMachine {
     }
 
     fn get_or_create_var(&mut self, name_addr: u16) {
-        let cur_sp = self.get_current_stack_mut().len();
+        let cur_sp = self.stack.len();
         let addr = match self.get_current_st_mut().entry(name_addr) {
             Entry::Occupied(entry) => *entry.get(),
             Entry::Vacant(entry) => {
                 entry.insert(cur_sp);
-                self.get_current_stack_mut().push(Value::U64(0));
+                self.stack.push(Value::U64(0));
                 cur_sp
             }
         };
 
-        self.get_current_stack_mut().push(Value::Addr(addr));
+        self.stack.push(Value::Addr(addr));
     }
 
     fn read_constant(&mut self, addr: u16) -> TACResult<Value> {
