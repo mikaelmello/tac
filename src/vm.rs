@@ -195,15 +195,15 @@ impl VirtualMachine {
             )));
         }
 
-        // get string id of "args" name
-        let args_name_addr = self
+        // get string id of "params" name
+        let params_name_addr = self
             .chunk
-            .add_name("args")
+            .add_name("params")
             .map_err(|_| self.report_rte("The program uses too many variables (65535+)".into()))?;
-        // get string id of "argc" name
-        let argc_name_addr = self
+        // get string id of "params_len" name
+        let params_len_name_addr = self
             .chunk
-            .add_name("argc")
+            .add_name("params_len")
             .map_err(|_| self.report_rte("The program uses too many variables (65535+)".into()))?;
 
         // push new empty frame
@@ -214,20 +214,22 @@ impl VirtualMachine {
         };
         self.frames.push(frame);
 
-        // insert "argc" variable in symbol table, address 0: beginning of the stack
-        let argc_addr = self.stack.len();
-        self.get_current_st_mut().insert(argc_name_addr, argc_addr);
+        // insert "params_len" variable in symbol table, address 0: beginning of the stack
+        let params_len_addr = self.stack.len();
+        self.get_current_st_mut()
+            .insert(params_len_name_addr, params_len_addr);
 
-        // push argc to stack
+        // push params_len to stack
         self.stack
             .push(Value::U64(parameters.len().try_into().unwrap()));
 
         if !parameters.is_empty() {
-            // insert "args" variable in symbol table, address 1: just after beginning of the stack
-            let args_addr = self.stack.len();
-            self.get_current_st_mut().insert(args_name_addr, args_addr);
+            // insert "params" variable in symbol table, address 1: just after beginning of the stack
+            let params_addr = self.stack.len();
+            self.get_current_st_mut()
+                .insert(params_name_addr, params_addr);
 
-            // push args to stack
+            // push params to stack
             for p in parameters {
                 self.stack.push(p);
             }
