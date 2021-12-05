@@ -124,6 +124,9 @@ impl VirtualMachine {
             match instruction {
                 Instruction::Halt => return Ok(()),
                 Instruction::Return => {
+                    // Calls return method, if it returns true, it means
+                    // we have returned from the last frame and we should
+                    // terminate the program.
                     if self.r#return() {
                         return Ok(());
                     }
@@ -154,6 +157,7 @@ impl VirtualMachine {
         }
     }
 
+    /// Pops the current frame, return whether it was the last frame available.
     fn r#return(&mut self) -> bool {
         let ra = self.get_current_frame().ra;
         let rsp = self.get_current_frame().rsp;
