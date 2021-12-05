@@ -232,11 +232,6 @@ impl<'source> Scanner<'source> {
                 break;
             }
 
-            match c.is_whitespace() {
-                true => self.advance(),
-                false => break,
-            };
-
             if c == '#' {
                 self.advance();
                 while let Some(cc) = self.peek() {
@@ -245,6 +240,10 @@ impl<'source> Scanner<'source> {
                     }
                     self.advance();
                 }
+            } else if c.is_whitespace() {
+                self.advance();
+            } else {
+                break;
             }
         }
     }
