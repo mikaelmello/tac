@@ -146,7 +146,6 @@ impl VirtualMachine {
                 Instruction::Greater => binary_op_f!(self, gt),
                 Instruction::Less => binary_op_f!(self, lt),
                 Instruction::Print(nl) => self.print(nl)?,
-                Instruction::Pop => self.pop()?,
                 Instruction::Goto(ip) => self.ip = ip as usize,
                 Instruction::JumpIf(ip) => self.jump_if(ip)?,
                 Instruction::Assign => self.assign()?,
@@ -281,13 +280,6 @@ impl VirtualMachine {
 
         print!("{}{}", value, suffix);
         Ok(())
-    }
-
-    fn pop(&mut self) -> TACResult<()> {
-        match self.stack.pop() {
-            Some(_) => Ok(()),
-            None => Err(self.report_rte("No value in the stack to pop".into())),
-        }
     }
 
     fn jump_if(&mut self, ip: u16) -> TACResult<()> {

@@ -24,7 +24,6 @@ pub enum Instruction {
     Assign,
     JumpIf(u16),
     Goto(u16),
-    Pop,
     Print(bool),
     Constant(u16),
     Halt,
