@@ -1,11 +1,6 @@
 println 12 + 34 # 46
 println 12 * 34 # 408
 println 12 - 34 # -22
-println -12 - -44 # 32
-println - 12 - - 44 # 32
-println -12 + 44 # 32
-println 44 + -12 # 32
-println 44 + - 12 # 32
 println 34 / 12 # 2
 println 34 % 12 # 10
 println 12 % 34 # 12
