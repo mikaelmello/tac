@@ -266,7 +266,6 @@ impl<'source, 'c> Compiler<'source, 'c> {
     fn unary_expression(&mut self) -> Option<()> {
         let unary_op = match self.current.kind {
             TokenKind::Bang => Some(Instruction::Not),
-            TokenKind::Minus => Some(Instruction::Negate),
             TokenKind::Star => todo!("Some(Instruction::Dereference"),
             TokenKind::Ampersand => todo!("Some(Instruction::Reference"),
             _ => None,
@@ -296,7 +295,11 @@ impl<'source, 'c> Compiler<'source, 'c> {
             TokenKind::True => self.emit_instruction(Instruction::True),
             TokenKind::False => self.emit_instruction(Instruction::False),
             TokenKind::Char => self.char(),
-            TokenKind::Number => self.number(),
+            TokenKind::Number => self.number(false),
+            TokenKind::Minus if self.current.kind == TokenKind::Number => {
+                self.advance();
+                self.number(true);
+            }
 
             // errors
             TokenKind::String => self.error("String literals are only allowed in the data section"),
@@ -304,7 +307,7 @@ impl<'source, 'c> Compiler<'source, 'c> {
         }
     }
 
-    fn number(&mut self) {
+    fn number(&mut self, negate: bool) {
         enum Type {
             U64,
             I64,
@@ -333,12 +336,17 @@ impl<'source, 'c> Compiler<'source, 'c> {
         let suffix_begin = number_end;
         let suffix_end = lexeme.len();
 
-        let number = &lexeme[number_begin..number_end];
+        let mut number = lexeme[number_begin..number_end].to_string();
         let suffix = &lexeme[suffix_begin..suffix_end];
+
+        if negate {
+            number = "-".to_string() + &number;
+        }
 
         let type_info = match (suffix, nt) {
             ("u64", Type::F64) => Err("Cannot set u64 suffix to a float number".into()),
             ("i64", Type::F64) => Err("Cannot set i64 suffix to a float number".into()),
+            ("u64", _) if negate => Err("Number of u64 type cannot be negative".into()),
             ("u64", _) => Ok(Type::U64),
             ("i64", _) => Ok(Type::I64),
             ("f64", _) => Ok(Type::F64),

@@ -1,6 +1,7 @@
 println 12 + 34 # 46
 println 12 * 34 # 408
 println 12 - 34 # -22
+println -12u64 + 34 # 22
 println -12 - -44 # 32
 println - 12 - - 44 # 32
 println -12 + 44 # 32
